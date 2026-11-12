@@ -15,7 +15,7 @@ public sealed class ConsumerRegistration
 
     public string Queue { get; }
     public ushort PrefetchCount { get; set; } = 10;
-    public int MaxRetries { get; set; } = 3;
+    public int MaxRetries { get; set; } = 5;
 
     internal Dictionary<string, (Type EventType, Func<IServiceProvider, object, CancellationToken, Task> Invoke)> Handlers { get; } = new();
 
@@ -167,8 +167,8 @@ public sealed class EventConsumer : BackgroundService
             return;
         }
 
-        // затримка перед повтором (1 с, 2 с, 4 с) — тимчасовому збою треба час минути
-        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        // експоненційна затримка перед повтором (1, 2, 4, 8, 10 с) — тимчасовому збою (перезапуск БД) треба час минути
+        await Task.Delay(TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt), 10)));
         var props = new BasicProperties(ea.BasicProperties)
         {
             Headers = new Dictionary<string, object?>(ea.BasicProperties.Headers ?? new Dictionary<string, object?>())

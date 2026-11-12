@@ -22,6 +22,28 @@ namespace Books.Dal.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Books.Dal.Entities.ProcessedEvent", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.ToTable("ProcessedEvents", (string)null);
+                });
+
             modelBuilder.Entity("Books.Domain.Entities.Author", b =>
                 {
                     b.Property<int>("Id")
@@ -88,6 +110,11 @@ namespace Books.Dal.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<int>("TimesLoaned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -115,6 +142,8 @@ namespace Books.Dal.Migrations
                             t.HasCheckConstraint("CK_Books_Price", "[Price] > 0");
 
                             t.HasCheckConstraint("CK_Books_PublishedYear", "[PublishedYear] BETWEEN 1450 AND 2100");
+
+                            t.HasCheckConstraint("CK_Books_TimesLoaned", "[TimesLoaned] >= 0");
 
                             t.HasCheckConstraint("CK_Books_TotalCopies", "[TotalCopies] >= 0");
                         });

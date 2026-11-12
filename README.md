@@ -410,3 +410,49 @@ for i in $(seq 1 15); do curl -s "http://localhost:5000/api/aggregator/loans/1/f
 # при зупиненому feedback-api: логи "Retry 1 to feedback-api", потім "Circuit to feedback-api OPENED"
 ```
 У Dashboard → Metrics: `resilience.polly.strategy.events` (фільтр `event.name`), `loans.created`, `loans.operation.duration`.
+
+## Лаб. 08 — асинхронна подієва взаємодія (RabbitMQ)
+
+Політика дублювання з Лаб. 01 тепер реалізована подіями: Каталог (Books) — власник даних книг — публікує факти про
+зміни, а Loans і Feedback оновлюють свої копії. Сервіс видач публікує зміну статусу видачі, Каталог рахує видачі книг.
+
+```
+books-api ──book.created / price_changed / renamed / deleted──► [books-events, topic]
+                                    ├── book.*        ──► loans.books-sync    ──► loans-api   (dbo.Books у LoansDb)
+                                    └── book.renamed  ──► feedback.books-sync ──► feedback-api (bookTitle у reviews / discussions / bookRatings)
+loans-api ──loan.status_changed──► [loans-events, topic] ──► books.loans-sync ──► books-api (Books.TimesLoaned)
+кожна черга: x-dead-letter-exchange = platform.dlx (direct, routing key = ім'я черги) ──► <черга>.dlq
+```
+
+| Що | Де |
+|---|---|
+| RabbitMQ у AppHost: `AddRabbitMQ("messaging").WithDataVolume().WithManagementPlugin()`, `WithReference(rabbit).WaitFor(rabbit)` | `Platform.AppHost/AppHost.cs` |
+| Підключення: `builder.AddRabbitMQClient("messaging")` — пакет `Aspire.RabbitMQ.Client.v7` (Aspire-інтеграція для RabbitMQ.Client 7.x: IChannel, `*Async`-API) | `Program.cs` сервісів, `Platform.EventBus.csproj` |
+| Топологія (exchanges, durable-черги, bindings, DLX/DLQ) — оголошується в коді під час старту | `Platform.EventBus/Topology.cs` |
+| `IntegrationEvent` (record: `EventId`, `OccurredAt`, `CorrelationId`, `SchemaVersion`), JSON camelCase | `Platform.EventBus/IntegrationEvent.cs` |
+| Події: `BookCreatedEvent`, `BookPriceChangedEvent`, `BookRenamedEvent`, `BookDeletedEvent`, `LoanStatusChangedEvent` | `<Сервіс>.Api/IntegrationEvents/Events/` |
+| `IEventPublisher` → `RabbitMqEventPublisher`: persistent, `MessageId = EventId`, `Type`, заголовки `x-correlation-id`, `traceparent`; publisher confirms | `Platform.EventBus/RabbitMqEventPublisher.cs` |
+| Публікація **після** `SaveChangesAsync` / `CommitAsync` — через порт BLL (`IBookEventPublisher`, `ILoanEventPublisher`) і адаптер в Api | `Books.Bll/Services/BookService.cs`, `Loans.Bll/Services/LoanService.cs`, `<Сервіс>.Api/IntegrationEvents/*EventPublisher.cs` |
+| Consumer — `BackgroundService`, `BasicQos(prefetch 10)`, `autoAck: false`, окремий DI-scope на повідомлення | `Platform.EventBus/EventConsumer.cs`, реєстрація — `Program.cs` (`AddConsumer`) |
+| Обробники: `BookCatalogEventsHandler` (Loans), `BookRenamedHandler` → `SyncBookTitleCommand` (Feedback), `LoanStatusChangedHandler` (Books) | `<Сервіс>.Api/IntegrationEvents/Handlers/`, `Feedback.Application/Commands/SyncBookTitle/` |
+| Ідемпотентність: Loans — `dbo.ProcessedEvents` (SQL-міграція `Loans.Dal/Migrations/001_ProcessedEvents.sql`, той самий `BEGIN TRAN`, що й оновлення копії); Books — EF-міграція `AddIntegrationEvents` (таблиця `ProcessedEvents`, той самий `SaveChanges`); Feedback — колекція `processedEvents` (`_id = EventId`, TTL 30 днів) | `Migrations/`, `IntegrationEvents/Handlers/` |
+| Out-of-order: копія змінюється лише якщо подія новіша (`SourceUpdatedAt` у LoansDb, `bookTitleUpdatedAt` у MongoDB) | `Loans.Dal/Dapper/BookRepository.cs`, `Feedback.Infrastructure/Persistence/IntegrationEventPersistence.cs` |
+| Ack після успіху; `Nack(requeue: false)` → DLQ для некоректного JSON, невідомого типу, `PermanentEventException`; тимчасовий збій — повторна публікація в ту саму чергу з `x-retry-count + 1` (затримка 1–10 с), після 5 спроб — DLQ | `Platform.EventBus/EventConsumer.cs` |
+| Трасування: W3C `traceparent` у заголовках (пропагатор OpenTelemetry), spans `books-events publish` / `loans.books-sync process` (ActivitySource `Platform.Messaging` у ServiceDefaults) | `Platform.EventBus/TracePropagation.cs`, `Platform.ServiceDefaults/Extensions.cs` |
+| Метрики `eventbus.messages.published`, `eventbus.messages.consumed{outcome}`, `eventbus.processing.duration`, gauge `eventbus.dlq.depth`; health check `messaging` (Degraded) | `Platform.EventBus/EventBusMetrics.cs`, `EventBusExtensions.cs` |
+
+Ціни й назви в **оформлених** видачах (`LoanItems.UnitPrice`, `LoanItems.BookTitle`) не змінюються — це знімок на момент
+видачі. Між збереженням і публікацією застосунок може впасти — тоді подію буде втрачено (збій логується як Error з
+EventId і BookId); гарантію доставки дав би Transactional Outbox (як IntegrationEventLogEF в eShop) — поза обсягом роботи.
+
+### Перевірка
+```bash
+dotnet run --project Platform.AppHost      # Management UI RabbitMQ — посилання в Dashboard (ресурс messaging)
+curl -X PUT http://localhost:5000/api/books/3/price -H "Content-Type: application/json" -d "{\"price\":350}"
+curl http://localhost:5000/api/loans/books/3            # за 1–2 с нова ціна в копії Loans
+curl -X PUT http://localhost:5000/api/books/4 -H "Content-Type: application/json" -d "{\"title\":\"Нова назва\",\"authorId\":2}"
+curl "http://localhost:5000/api/reviews?bookId=4"       # bookTitle оновився у відгуках
+```
+Dashboard → Traces: один trace `PUT /api/books/4` → `books-events publish` → `loans.books-sync process` і
+`feedback.books-sync process` → SQL / MongoDB. Management UI → Publish message з тілом `{not json` у `books-events`
+(routing key `book.price_changed`) — повідомлення опиниться в `loans.books-sync.dlq`.
