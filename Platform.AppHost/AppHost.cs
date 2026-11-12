@@ -48,6 +48,7 @@ builder.AddProject<Projects.Platform_ApiGateway>("gateway")
        .WithReference(feedbackApi)
        .WithReference(aggregator)
        .WaitFor(aggregator)
+       .WithEndpoint("http", e => e.Port = 5000)          // фіксований публічний порт Gateway
        .WithExternalHttpEndpoints()
        .WithHttpHealthCheck("/health");
 
