@@ -19,6 +19,7 @@ public class ReviewsController : ApiControllerBase
     public ReviewsController(IMapper mapper) => _mapper = mapper;
 
     /// <summary>Список відгуків: фільтри bookId, authorId, minRating, search (text-індекс) і пагінація.</summary>
+    [RequirePermission(Permissions.Feedback.Read)]
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<ReviewDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -28,6 +29,7 @@ public class ReviewsController : ApiControllerBase
         => Ok(await Mediator.Send(new GetReviewsListQuery(bookId, authorId, minRating, search, page, pageSize), ct));
 
     /// <summary>Відгук із коментарями. Версія документа повертається в заголовку ETag.</summary>
+    [RequirePermission(Permissions.Feedback.Read)]
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ReviewDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -40,6 +42,7 @@ public class ReviewsController : ApiControllerBase
     }
 
     /// <summary>Створити відгук -> 201 + Location із рядковим ObjectId.</summary>
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpPost]
     [ProducesResponseType(typeof(CreatedIdDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -51,6 +54,7 @@ public class ReviewsController : ApiControllerBase
     }
 
     /// <summary>Редагувати відгук. Заголовок If-Match: "версія" -> 409, якщо документ уже змінено.</summary>
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ReviewDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -65,6 +69,7 @@ public class ReviewsController : ApiControllerBase
         return Ok(review);
     }
 
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -76,6 +81,7 @@ public class ReviewsController : ApiControllerBase
     }
 
     /// <summary>Додати коментар (вбудований масив comments).</summary>
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpPost("{id}/comments")]
     [ProducesResponseType(typeof(CommentDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

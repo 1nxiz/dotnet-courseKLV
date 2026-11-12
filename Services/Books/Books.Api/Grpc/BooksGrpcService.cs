@@ -10,6 +10,7 @@ namespace Books.Api.Grpc;
 /// gRPC-адаптер над BLL (як контролер, але для внутрішніх клієнтів): валідує запит, викликає IBookService
 /// (з кешем L1/L2), перетворює DTO на protobuf-повідомлення, доменні винятки — на RpcException з точним кодом.
 /// </summary>
+[RequirePermission(Permissions.Books.Read)]   // Лаб. 09: Aggregator викликає з токеном Client Credentials (scope books:read)
 public sealed class BooksGrpcService : BooksCatalog.BooksCatalogBase
 {
     private const int MaxBatch = 100;

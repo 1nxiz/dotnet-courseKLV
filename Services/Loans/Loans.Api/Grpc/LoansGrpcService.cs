@@ -11,6 +11,7 @@ namespace Loans.Api.Grpc;
 /// gRPC-адаптер над BLL сервісу видач: ті самі ILoanService / IReaderService (і той самий кеш), що й у REST-контролерів.
 /// Доменні винятки перетворюються на RpcException з точним кодом, а не на загальний Internal.
 /// </summary>
+[RequirePermission(Permissions.Loans.Read)]   // Лаб. 09: Aggregator викликає з токеном Client Credentials (scope loans:read)
 public sealed class LoansGrpcService : LoansService.LoansServiceBase
 {
     private readonly ILoanService _loans;

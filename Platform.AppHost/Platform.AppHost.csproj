@@ -12,6 +12,7 @@
     <PackageReference Include="Aspire.Hosting.MongoDB" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="9.5.2" />
+    <PackageReference Include="Aspire.Hosting.Keycloak" Version="9.5.2-preview.1.25522.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Services\Loans\Loans.Api\Loans.Api.csproj" />
@@ -19,5 +20,8 @@
     <ProjectReference Include="..\Services\Feedback\Feedback.WebApi\Feedback.WebApi.csproj" />
     <ProjectReference Include="..\Platform.Aggregator\Platform.Aggregator.csproj" />
     <ProjectReference Include="..\Platform.ApiGateway\Platform.ApiGateway.csproj" />
+    <ProjectReference Include="..\Platform.IdentityServer\Platform.IdentityServer.csproj" />
+    <ProjectReference Include="..\Services\Auth\Auth.Api\Auth.Api.csproj" />
+    <ProjectReference Include="..\Services\Payments\Payments.Api\Payments.Api.csproj" />
   </ItemGroup>
 </Project>

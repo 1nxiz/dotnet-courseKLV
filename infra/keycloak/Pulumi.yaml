@@ -1,0 +1,3 @@
+name: library-keycloak
+runtime: dotnet
+description: Keycloak realm "library" for the online library platform (Lab 09) — realm, resource servers, roles, clients, users

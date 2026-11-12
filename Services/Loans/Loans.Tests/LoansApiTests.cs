@@ -7,17 +7,17 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Loans.Tests;
 
 /// <summary>API-тести через WebApplicationFactory: статуси та формат помилок (ProblemDetails).</summary>
-public class LoansApiTests : IClassFixture<WebApplicationFactory<Program>>
+public class LoansApiTests : IClassFixture<AuthenticatedApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly AuthenticatedApiFactory _factory;
 
-    public LoansApiTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public LoansApiTests(AuthenticatedApiFactory factory) => _factory = factory;
 
     [SkippableFact]
     public async Task Missing_loan_returns_404_problem_details()
     {
         TestDatabase.SkipIfUnavailable();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
 
         var response = await client.GetAsync("/api/loans/999999999");
 
@@ -32,7 +32,7 @@ public class LoansApiTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Confirming_already_confirmed_loan_returns_409_and_issuing_unpaid_returns_409()
     {
         TestDatabase.SkipIfUnavailable();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
 
         var create = await client.PostAsJsonAsync("/api/loans", new
         {
@@ -71,7 +71,7 @@ public class LoansApiTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Invalid_input_returns_400_validation_problem()
     {
         TestDatabase.SkipIfUnavailable();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
 
         var response = await client.PostAsJsonAsync("/api/loans", new { readerId = 0, items = Array.Empty<object>() });
 

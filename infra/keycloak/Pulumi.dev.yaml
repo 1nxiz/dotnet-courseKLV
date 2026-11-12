@@ -1,0 +1,11 @@
+# Стек dev: Keycloak з Aspire AppHost (http://localhost:8080, адміністратор — параметри keycloak-admin / keycloak-password).
+# Пароль адміністратора в production задається як секрет:  pulumi config set --secret keycloak:password <...>
+config:
+  keycloak:url: http://localhost:8080
+  keycloak:clientId: admin-cli
+  keycloak:username: admin
+  keycloak:password: Admin_Pass123!
+  keycloak:realm: master
+  library:realm: library
+  library:userPassword: Pass_123456
+  library:temporaryPasswords: "true"

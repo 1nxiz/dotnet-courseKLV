@@ -13,12 +13,14 @@ public class GenresController : ControllerBase
 
     public GenresController(IGenreService genres) => _genres = genres;
 
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<GenreDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<GenreDto>>> GetAll(CancellationToken ct)
         => Ok(await _genres.GetAllAsync(ct));
 
     /// <summary>Жанр із книгами (explicit loading — 2 SQL-запити).</summary>
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(GenreWithBooksDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -26,6 +28,7 @@ public class GenresController : ControllerBase
         => Ok(await _genres.GetWithBooksAsync(id, ct));
 
     /// <summary>Нещодавно додані в жанр (LINQ через проміжну сутність M:N і її поле AddedAt).</summary>
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet("{slug}/recent")]
     [ProducesResponseType(typeof(IReadOnlyList<BookDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<BookDto>>> GetRecentlyAdded(string slug, [FromQuery] DateTime? since,
@@ -33,6 +36,7 @@ public class GenresController : ControllerBase
         => Ok(await _genres.GetRecentlyAddedAsync(slug, since ?? DateTime.UtcNow.AddMonths(-3), ct));
 
     /// <summary>Кількість книг у кожному жанрі.</summary>
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet("statistics")]
     [ProducesResponseType(typeof(IReadOnlyList<GenreStatisticsDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<GenreStatisticsDto>>> GetStatistics(CancellationToken ct)

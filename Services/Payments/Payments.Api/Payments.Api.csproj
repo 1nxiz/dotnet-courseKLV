@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- payments-api (Лаб. 09): демонстраційний сервіс платежів — найчутливіший ресурс, доступ ЛИШЕ для admin
+       (payments:read / payments:process / payments:refund). Дані — у пам'яті (ендпоінти-заглушки). -->
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

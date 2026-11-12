@@ -13,6 +13,7 @@ namespace Feedback.WebApi.Grpc;
 /// gRPC-адаптер Presentation-шару: як і контролери, лише надсилає запити через ISender (MediatR), тож проходить
 /// увесь pipeline — логування, валідацію і CachingBehavior. Винятки Application-шару -> RpcException з точним кодом.
 /// </summary>
+[RequirePermission(Permissions.Feedback.Read)]   // Лаб. 09: Aggregator викликає з токеном Client Credentials (scope feedback:read)
 public sealed class FeedbackGrpcService : FeedbackService.FeedbackServiceBase
 {
     private const int MaxBooks = 50;

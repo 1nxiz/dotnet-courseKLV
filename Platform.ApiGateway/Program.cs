@@ -11,9 +11,17 @@ builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
     .AddServiceDiscoveryDestinationResolver();
 
+// Лаб. 09: Gateway — єдина точка входу; JWT валідується тут ПЕРЕД проксіюванням (політика маршруту "authenticated"),
+// заголовок Authorization пересилається сервісам без змін — вони перевіряють permissions локально (варіант Б).
+// audience не перевіряється: Gateway не є Resource Server, audience перевіряє кожен сервіс.
+builder.AddPlatformAuthentication(apiAudience: "library-gateway", validateAudience: false);
+builder.Services.AddPlatformAuthorization();
+
 var app = builder.Build();
 
 app.UseCorrelationId();                                         // ДО MapReverseProxy: генерує X-Correlation-Id на вході
+app.UseAuthentication();
+app.UseAuthorization();                                         // AuthorizationPolicy маршрутів YARP
 
 // Логування рішень маршрутизації й тривалості (структуровані властивості, без конкатенації рядків)
 app.Use(async (context, next) =>

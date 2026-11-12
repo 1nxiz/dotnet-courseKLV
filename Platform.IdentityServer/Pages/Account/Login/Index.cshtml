@@ -1,0 +1,18 @@
+@page
+@model Platform.IdentityServer.Pages.Account.Login.IndexModel
+<h2>Вхід</h2>
+<form method="post">
+    <input type="hidden" asp-for="Input.ReturnUrl" />
+    <label asp-for="Input.Username">Ім'я користувача</label>
+    <input type="text" asp-for="Input.Username" autofocus />
+    <label asp-for="Input.Password">Пароль</label>
+    <input type="password" asp-for="Input.Password" />
+    <label><input type="checkbox" asp-for="Input.RememberLogin" /> Запам'ятати мене</label>
+    <button type="submit" name="Input.Button" value="login">Увійти</button>
+    <button type="submit" name="Input.Button" value="cancel">Скасувати</button>
+    @if (!string.IsNullOrEmpty(Model.Error))
+    {
+        <div class="error">@Model.Error</div>
+    }
+</form>
+<p class="hint">Тестові користувачі: alice (admin), mike (manager), uma (user), gary (guest).</p>

@@ -8,6 +8,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Grpc.Core.Api" Version="2.67.0" />
+    <!-- Лаб. 09: JWT Bearer (транзитивно) + інтеграція Keycloak через service discovery -->
+    <PackageReference Include="Aspire.Keycloak.Authentication" Version="9.5.2-preview.1.25522.3" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.*" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="9.5.2" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />

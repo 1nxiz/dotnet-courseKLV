@@ -83,6 +83,11 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
     context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
 builder.Services.AddExceptionHandler<FeedbackExceptionHandler>();
 
+// ---------- Лаб. 09: JWT (Auth Service / IdentityServer / Keycloak) і permission-based авторизація ----------
+// Токен валідується ЛОКАЛЬНО; кожен endpoint позначено [RequirePermission(...)] за матрицею Permissions.RoleMatrix
+builder.AddPlatformAuthentication(apiAudience: "feedback-api");
+builder.Services.AddPlatformAuthorization();
+
 var app = builder.Build();
 
 app.UseCorrelationId();
@@ -96,6 +101,8 @@ if (!app.Environment.IsProduction())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapGrpcService<FeedbackGrpcService>();
 app.MapGrpcHealthChecksService();

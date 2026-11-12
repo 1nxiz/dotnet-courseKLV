@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pulumi (IaC, Лаб. 09 ч. 3): realm "library" у Keycloak — resource servers зі scopes і permission policies,
+       realm-ролі admin/manager/user/guest, клієнти (Authorization Code, PKCE, Client Credentials), тестові користувачі.
+       Запуск: pulumi preview / pulumi up / pulumi stack output / pulumi destroy. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Pulumi.Keycloak" Version="6.14.2" />
+  </ItemGroup>
+</Project>

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Platform.Aggregator.Clients;
 using Platform.Aggregator.HealthChecks;
 using Platform.Aggregator.Resilience;
+using Platform.Aggregator.Security;
 using Platform.Aggregator.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,15 +17,16 @@ builder.AddServiceDefaults();          // service discovery і CorrelationIdHand
 // ---------- Клієнти мікросервісів із політиками стійкості за критичністю (Лаб. 07, таблиця в README) ----------
 // gRPC (типовий транспорт, Лаб. 06): адреса http://_grpc.<ресурс>; retry — gRPC ServiceConfig, breaker/таймаути — HTTP-рівень.
 builder.Services.AddSingleton<GrpcClientLoggingInterceptor>();
-builder.Services.AddResilientGrpcClient<LoansService.LoansServiceClient>(ServiceResilienceProfile.Loans);
-builder.Services.AddResilientGrpcClient<BooksCatalog.BooksCatalogClient>(ServiceResilienceProfile.Books);
-builder.Services.AddResilientGrpcClient<FeedbackService.FeedbackServiceClient>(ServiceResilienceProfile.Feedback);
+builder.Services.AddUpstreamAuthentication(builder.Configuration);    // Лаб. 09: Client Credentials (IdentityServer)
+builder.Services.AddResilientGrpcClient<LoansService.LoansServiceClient>(ServiceResilienceProfile.Loans, builder.Configuration);
+builder.Services.AddResilientGrpcClient<BooksCatalog.BooksCatalogClient>(ServiceResilienceProfile.Books, builder.Configuration);
+builder.Services.AddResilientGrpcClient<FeedbackService.FeedbackServiceClient>(ServiceResilienceProfile.Feedback, builder.Configuration);
 builder.Services.AddScoped<GrpcUpstream>();
 
 // HTTP REST (Лаб. 05, transport=http): повний Standard Resilience Handler з параметрами профілю
-builder.Services.AddResilientHttpClient<LoansClient>(ServiceResilienceProfile.Loans);
-builder.Services.AddResilientHttpClient<BooksClient>(ServiceResilienceProfile.Books);
-builder.Services.AddResilientHttpClient<FeedbackClient>(ServiceResilienceProfile.Feedback);
+builder.Services.AddResilientHttpClient<LoansClient>(ServiceResilienceProfile.Loans, builder.Configuration);
+builder.Services.AddResilientHttpClient<BooksClient>(ServiceResilienceProfile.Books, builder.Configuration);
+builder.Services.AddResilientHttpClient<FeedbackClient>(ServiceResilienceProfile.Feedback, builder.Configuration);
 builder.Services.AddScoped<HttpUpstream>();
 
 // Health checks залежностей (gRPC Health Checking Protocol + Redis)
@@ -56,6 +58,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
 
+// Лаб. 09: вхідні запити — JWT користувача; endpoint вимагає loans:read
+builder.AddPlatformAuthentication(apiAudience: "aggregator", validateAudience: false);
+builder.Services.AddPlatformAuthorization();
+
 var app = builder.Build();
 app.UseCorrelationId();
 
@@ -78,6 +84,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.Run();

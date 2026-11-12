@@ -28,6 +28,7 @@ public class LoansController : ControllerBase
     private string CurrentUser => User.Identity?.Name ?? "anonymous";
 
     /// <summary>Список видач з фільтрами та пагінацією.</summary>
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<LoanSummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -35,6 +36,7 @@ public class LoansController : ControllerBase
         => Ok(await _loans.GetPageAsync(query, ct));
 
     /// <summary>Картка видачі з позиціями та деталями.</summary>
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(LoanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -42,6 +44,7 @@ public class LoansController : ControllerBase
         => Ok(await _loans.GetByIdAsync(id, ct));
 
     /// <summary>Оформити видачу. Назва й ціна книг фіксуються в позиціях як знімок.</summary>
+    [RequirePermission(Permissions.Loans.Create)]
     [HttpPost]
     [ProducesResponseType(typeof(LoanDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -53,6 +56,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>Змінити деталі доставки (оптимістична конкурентність через RowVersion).</summary>
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPut("{id:long}/details")]
     [ProducesResponseType(typeof(RowVersionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -62,6 +66,7 @@ public class LoansController : ControllerBase
         => Ok(await _loans.UpdateDetailsAsync(id, input, CurrentUser, ct));
 
     /// <summary>Підтвердити видачу: Reserved + резервування примірників в одній транзакції.</summary>
+    [RequirePermission(Permissions.Loans.Approve)]
     [HttpPost("{id:long}/confirm")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -74,6 +79,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>Оплатити видачу. Заголовок Idempotency-Key захищає від повторного списання.</summary>
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPost("{id:long}/pay")]
     [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -89,6 +95,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>Платежі видачі.</summary>
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet("{id:long}/payments")]
     [ProducesResponseType(typeof(IReadOnlyList<PaymentDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -96,6 +103,7 @@ public class LoansController : ControllerBase
         => Ok(await _loans.GetPaymentsAsync(id, ct));
 
     /// <summary>Видати книги читачеві (лише оплачену видачу).</summary>
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPost("{id:long}/issue")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -108,6 +116,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>Повернення книг: Returned + примірники на полицю.</summary>
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPost("{id:long}/return")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -120,6 +129,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>Скасувати видачу (лише до оплати).</summary>
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPost("{id:long}/cancel")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -132,6 +142,7 @@ public class LoansController : ControllerBase
     }
 
     /// <summary>М'яко видалити скасовану або повернену видачу.</summary>
+    [RequirePermission(Permissions.Loans.Delete)]
     [HttpDelete("{id:long}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

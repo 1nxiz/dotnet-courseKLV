@@ -11,6 +11,7 @@ namespace Feedback.WebApi.Controllers;
 public class DiscussionsController : ApiControllerBase
 {
     /// <summary>Обговорення + повідомлення з курсорною пагінацією (?after=&lt;id останнього отриманого&gt;).</summary>
+    [RequirePermission(Permissions.Feedback.Read)]
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(DiscussionWithMessagesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -19,6 +20,7 @@ public class DiscussionsController : ApiControllerBase
         [FromQuery] int pageSize = 20, CancellationToken ct = default)
         => Ok(await Mediator.Send(new GetDiscussionQuery(id, after, pageSize), ct));
 
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpPost]
     [ProducesResponseType(typeof(CreatedIdDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -30,6 +32,7 @@ public class DiscussionsController : ApiControllerBase
         return CreatedAtAction(nameof(Get), new { id }, new CreatedIdDto(id));
     }
 
+    [RequirePermission(Permissions.Feedback.Write)]
     [HttpPost("{id}/messages")]
     [ProducesResponseType(typeof(CreatedIdDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

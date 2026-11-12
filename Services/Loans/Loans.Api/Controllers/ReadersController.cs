@@ -16,17 +16,20 @@ public class ReadersController : ControllerBase
 
     private string CurrentUser => User.Identity?.Name ?? "anonymous";
 
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ReaderDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ReaderDto>>> GetAll(CancellationToken ct)
         => Ok(await _readers.GetAllAsync(ct));
 
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(ReaderDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ReaderDto>> GetById(long id, CancellationToken ct)
         => Ok(await _readers.GetByIdAsync(id, ct));
 
+    [RequirePermission(Permissions.Loans.Create)]
     [HttpPost]
     [ProducesResponseType(typeof(ReaderDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -37,6 +40,7 @@ public class ReadersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
+    [RequirePermission(Permissions.Loans.Update)]
     [HttpPut("{id:long}")]
     [ProducesResponseType(typeof(ReaderDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -45,6 +49,7 @@ public class ReadersController : ControllerBase
     public async Task<ActionResult<ReaderDto>> Update(long id, UpdateReaderDto input, CancellationToken ct)
         => Ok(await _readers.UpdateAsync(id, input, CurrentUser, ct));
 
+    [RequirePermission(Permissions.Loans.Delete)]
     [HttpDelete("{id:long}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

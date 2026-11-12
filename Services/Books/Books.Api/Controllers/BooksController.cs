@@ -26,6 +26,7 @@ public class BooksController : ControllerBase
 
     /// <summary>Список з пагінацією, фільтрацією та сортуванням (виконуються в SQL).</summary>
     /// <remarks>Метадані пагінації — у тілі відповіді й у заголовках X-Pagination-TotalCount / -Page / -PageSize / -TotalPages.</remarks>
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<BookDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -45,6 +46,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Картка книги (eager loading: деталі, автор, зображення, жанри — одним запитом).</summary>
+    [RequirePermission(Permissions.Books.Read)]
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(BookCardDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -52,6 +54,7 @@ public class BooksController : ControllerBase
         => Ok(await _books.GetByIdAsync(id, ct));
 
     /// <summary>Створити книгу. Повторний ISBN -> 409.</summary>
+    [RequirePermission(Permissions.Books.Create)]
     [HttpPost]
     [ProducesResponseType(typeof(BookCardDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -69,6 +72,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Оновити назву, автора, рік.</summary>
+    [RequirePermission(Permissions.Books.Update)]
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(BookDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -83,6 +87,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Змінити ціну (плату за видачу).</summary>
+    [RequirePermission(Permissions.Books.Update)]
     [HttpPut("{id:int}/price")]
     [ProducesResponseType(typeof(BookDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -100,6 +105,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Надходження примірників у фонд.</summary>
+    [RequirePermission(Permissions.Books.Update)]
     [HttpPost("{id:int}/copies")]
     [ProducesResponseType(typeof(BookDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -116,6 +122,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Списання примірників. Більше, ніж є, -> 409 (правило сутності).</summary>
+    [RequirePermission(Permissions.Books.Update)]
     [HttpPost("{id:int}/write-off")]
     [ProducesResponseType(typeof(BookDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -133,6 +140,7 @@ public class BooksController : ControllerBase
     }
 
     /// <summary>Опублікувати книгу (стає видимою читачам).</summary>
+    [RequirePermission(Permissions.Books.Publish)]
     [HttpPost("{id:int}/publish")]
     [ProducesResponseType(typeof(BookDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -144,6 +152,7 @@ public class BooksController : ControllerBase
         return Ok(book);
     }
 
+    [RequirePermission(Permissions.Books.Delete)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

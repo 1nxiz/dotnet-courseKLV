@@ -5,6 +5,7 @@
     <Project Path="Platform.ApiGateway/Platform.ApiGateway.csproj" />
     <Project Path="Platform.Aggregator/Platform.Aggregator.csproj" />
     <Project Path="Platform.EventBus/Platform.EventBus.csproj" />
+    <Project Path="Platform.IdentityServer/Platform.IdentityServer.csproj" />
   </Folder>
   <Folder Name="/Services/Loans/">
     <Project Path="Services/Loans/Loans.Api/Loans.Api.csproj" />
@@ -26,6 +27,12 @@
     <Project Path="Services/Feedback/Feedback.Infrastructure/Feedback.Infrastructure.csproj" />
     <Project Path="Services/Feedback/Feedback.WebApi/Feedback.WebApi.csproj" />
     <Project Path="Services/Feedback/Feedback.Tests/Feedback.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Services/Auth/">
+    <Project Path="Services/Auth/Auth.Api/Auth.Api.csproj" />
+  </Folder>
+  <Folder Name="/Services/Payments/">
+    <Project Path="Services/Payments/Payments.Api/Payments.Api.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />

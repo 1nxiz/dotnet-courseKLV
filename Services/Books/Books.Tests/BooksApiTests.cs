@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Books.Tests;
 
-public sealed class BooksApiFixture : WebApplicationFactory<Program> { }
+public sealed class BooksApiFixture : AuthenticatedApiFactory { }
 
 [CollectionDefinition("books-api")]
 public sealed class BooksApiCollection : ICollectionFixture<BooksApiFixture> { }
@@ -29,7 +29,7 @@ public class BooksApiTests
     public async Task Paging_returns_total_count_of_all_rows_not_page_size()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
 
         var all = await client.GetFromJsonAsync<JsonElement>("/api/books?page=1&pageSize=100");
         var page2 = await client.GetAsync("/api/books?page=2&pageSize=5");
@@ -46,7 +46,7 @@ public class BooksApiTests
     public async Task Empty_title_returns_400_with_errors_per_field()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
 
         var response = await client.PostAsJsonAsync("/api/books", new { title = "", isbn = "978-1-11-111111-1", price = 10, authorId = 1 });
 
@@ -59,7 +59,7 @@ public class BooksApiTests
     public async Task Duplicate_isbn_returns_409_and_missing_id_returns_404()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
         var isbn = $"978-0-{Random.Shared.Next(10, 99)}-{Random.Shared.Next(100000, 999999)}-1";
         var book = new { title = "Refactoring", isbn, price = 55, authorId = 4, initialCopies = 1, genreIds = new[] { 4 } };
 
@@ -80,7 +80,7 @@ public class BooksApiTests
     public async Task Seeded_reference_data_is_not_duplicated()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
         var genres = await client.GetFromJsonAsync<JsonElement>("/api/books/genres");
         Assert.Equal(6, genres.GetArrayLength());
     }

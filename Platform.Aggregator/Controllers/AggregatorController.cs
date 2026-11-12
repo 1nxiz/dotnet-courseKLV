@@ -13,6 +13,7 @@ public class AggregatorController(LoanCardAggregator aggregator) : ControllerBas
     /// Повна картка видачі: видача + книги з каталогу + підсумки відгуків. Внутрішні виклики — gRPC
     /// (transport=http — HTTP REST з Лаб. 05 для порівняння затримок); cache=false — обійти кеш Redis.
     /// </summary>
+    [RequirePermission(Permissions.Loans.Read)]
     [HttpGet("loans/{id:long}/full")]
     [ProducesResponseType(typeof(LoanCardDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

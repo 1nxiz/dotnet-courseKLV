@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Feedback.Tests;
 
-public sealed class FeedbackApiFixture : WebApplicationFactory<Program> { }
+public sealed class FeedbackApiFixture : AuthenticatedApiFactory { }
 
 [CollectionDefinition("feedback-api")]
 public sealed class FeedbackApiCollection : ICollectionFixture<FeedbackApiFixture> { }
@@ -25,7 +25,7 @@ public class FeedbackApiTests
     public async Task Create_get_update_with_etag_and_duplicate_is_rejected()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
         var author = "u-test-" + Guid.NewGuid().ToString("N")[..8];
         var body = new { bookId = 3, bookTitle = "Місто", authorId = author, authorName = "Тест", rating = 4, text = "Атмосферно" };
 
@@ -54,7 +54,7 @@ public class FeedbackApiTests
     public async Task Invalid_object_id_and_rating_return_400()
     {
         SkipIfNoDatabase();
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClient("admin");
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/reviews/not-an-id")).StatusCode);
         var response = await client.PostAsJsonAsync("/api/reviews",
             new { bookId = 2, bookTitle = "Тигролови", authorId = "u-x", authorName = "X", rating = 10, text = "?" });

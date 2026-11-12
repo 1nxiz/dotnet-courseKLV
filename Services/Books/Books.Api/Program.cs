@@ -91,6 +91,11 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
     context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
 builder.Services.AddExceptionHandler<ExceptionToProblemDetailsHandler>();
 
+// ---------- Лаб. 09: JWT (Auth Service / IdentityServer / Keycloak) і permission-based авторизація ----------
+// Токен валідується ЛОКАЛЬНО; кожен endpoint позначено [RequirePermission(...)] за матрицею Permissions.RoleMatrix
+builder.AddPlatformAuthentication(apiAudience: "books-api");
+builder.Services.AddPlatformAuthorization();
+
 var app = builder.Build();
 
 app.UseCorrelationId();               // спільний CorrelationId-middleware замість власного LogContextMiddleware
@@ -114,6 +119,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapGrpcService<BooksGrpcService>();
 app.MapGrpcHealthChecksService();
