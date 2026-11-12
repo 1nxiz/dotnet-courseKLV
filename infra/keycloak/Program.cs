@@ -10,11 +10,11 @@ using Pulumi.Keycloak.OpenId.Inputs;
 // ролі, політики, permissions, клієнтів і користувачів.
 return await Deployment.RunAsync(() =>
 {
-    var config = new Config("library");
+    var config = new Pulumi.Config("library");
     var realmName = config.Get("realm") ?? "library";
     var userPassword = config.Get("userPassword") ?? "Pass_123456";
     var temporaryPasswords = config.GetBoolean("temporaryPasswords") ?? true;
-    var keycloakUrl = new Config("keycloak").Get("url") ?? "http://localhost:8080";
+    var keycloakUrl = new Pulumi.Config("keycloak").Get("url") ?? "http://localhost:8080";
 
     // ---------------- Realm ----------------
     var realm = new Realm("library-realm", new RealmArgs
