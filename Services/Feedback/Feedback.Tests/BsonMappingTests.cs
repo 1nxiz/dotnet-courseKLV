@@ -25,7 +25,7 @@ public class BsonMappingTests
         Assert.Equal(4L, doc["bookId"].AsInt64);
         Assert.Equal("Олена", doc["author"]["displayName"].AsString);
         Assert.Equal(BsonType.Int32, doc["rating"].BsonType);
-        Assert.Equal(1, doc["comments"].AsBsonArray.Count);
+        Assert.Single(doc["comments"].AsBsonArray);
         Assert.Equal("u-2", doc["comments"][0]["author"]["userId"].AsString);
         Assert.False(doc.Contains("readingProgress"));            // null не записується
         Assert.DoesNotContain(doc.Names, n => n.StartsWith('_') && n != "_id");
