@@ -456,3 +456,81 @@ curl "http://localhost:5000/api/reviews?bookId=4"       # bookTitle оновив
 Dashboard → Traces: один trace `PUT /api/books/4` → `books-events publish` → `loans.books-sync process` і
 `feedback.books-sync process` → SQL / MongoDB. Management UI → Publish message з тілом `{not json` у `books-events`
 (routing key `book.price_changed`) — повідомлення опиниться в `loans.books-sync.dlq`.
+
+## Лаб. 09 — аутентифікація та авторизація
+
+Три підходи працюють **одночасно**: кожен мікросервіс приймає JWT від Auth Service, Duende IdentityServer і Keycloak
+та перевіряє їх локально (`Platform.ServiceDefaults/Security/PlatformAuthentication.cs` — policy-схема обирає провайдера
+за `iss` токена). Точка входу — Gateway (`http://localhost:5000`): без токена — 401 ще до проксіювання.
+
+### Ч. 1 — ASP.NET Identity + JWT (`Services/Auth/Auth.Api`, база `IdentityDb`)
+| Endpoint | Доступ | Що робить |
+|---|---|---|
+| `POST /auth/register` | анонімно | користувач + роль User, лист підтвердження (mock email: `GET /auth/dev/mailbox/{email}` у Development) |
+| `POST /auth/login` | анонімно | access token 15 хв у тілі + refresh token 7 днів у HttpOnly cookie (`Path=/auth`, `SameSite=Strict`); непідтверджений email -> 403; 5 невдалих спроб -> lockout |
+| `POST /auth/refresh-token` | анонімно | rotation: старий токен відкликається, новий видається; повторне використання відкликаного — відкликаються всі токени користувача |
+| `POST /auth/revoke-token`, `POST /auth/logout` | автентифікований | відкликання refresh token |
+| `POST /auth/verify-email`, `POST /auth/resend-verification` | анонімно | одноразовий токен підтвердження |
+| `POST /auth/forgot-password`, `POST /auth/reset-password` | анонімно | одноразовий токен скидання (SecurityStamp), після скидання — відкликання всіх refresh tokens |
+| `POST /auth/change-password` | автентифікований | поточний + новий пароль |
+| `GET /users`, `DELETE /users/{id}`, `POST /users/{id}/roles`, `DELETE /users/{id}/roles/{role}` | Admin | керування користувачами й ролями |
+| `GET/PUT /users/{id}`, `GET /users/{id}/refresh-tokens` | власник або Admin | профіль, історія refresh tokens |
+| `GET /users/{id}/roles` | автентифікований | ролі |
+
+Refresh tokens зберігаються як SHA-256 хеш (`RefreshTokens`), ролі User/Admin (+Manager/Guest) створюються під час старту.
+
+### Ч. 2 — Duende IdentityServer (`Platform.IdentityServer`, окремий SQL Server `identityserver-sql`, база `IdentityServerDb`)
+* `AddIdentityServer().AddAspNetIdentity().AddConfigurationStore().AddOperationalStore()`; міграції трьох контекстів
+  (`Migrations/PersistedGrantDb`, `ConfigurationDb`, `ApplicationDb`); власна сторінка логіну/виходу (Razor Pages, як Quickstart UI).
+* ApiResources `loans-api`, `books-api`, `feedback-api`, `payments-api` (audience сервісу); ApiScopes = permissions (`loans:read`, `books:publish`, ...).
+* Клієнти: `postman` — Authorization Code + PKCE (redirect `https://oauth.pstmn.io/v1/callback`), `aggregator_service` —
+  Client Credentials (токен без `sub`), `swagger` — public client, PKCE обов'язковий.
+* Сервіси: `AddJwtBearer` з `Authority` (ключі — з discovery document) і `Audience` = ApiResource; фіксований `IssuerUri`.
+* Aggregator отримує й кешує токен Client Credentials (Duende.AccessTokenManagement) і додає його до gRPC/HTTP-викликів.
+
+### Ч. 3 — Keycloak + Pulumi (`infra/keycloak`)
+* Keycloak у AppHost — `AddKeycloak("keycloak", 8080, ...)` + `WithDataVolume()` (траєкторія Б); сервіси — `AddKeycloakJwtBearer` (Aspire.Keycloak.Authentication).
+* `pulumi up` створює realm `library`; Resource Servers `loans-api`, `books-api`, `payments-api`, `feedback-api` з увімкненою
+  Authorization: scopes, ресурс, role policies і scope permissions за матрицею; client roles з іменами permissions і composite
+  realm-ролі admin/manager/user/guest; клієнти через factory (`ClientFactory.cs`: Authorization Code+PKCE, public PKCE,
+  Client Credentials + client roles service account, тестовий direct grant) з audience mappers (extension methods);
+  користувачі alice (admin), mike (manager), uma (user), gary (guest) з тимчасовими паролями. Outputs: RealmUrl, AdminConsoleUrl, ClientIds, ClientSecrets.
+* JWT Keycloak містить `realm_access.roles` і `resource_access.<сервіс>.roles`; RPT (grant `uma-ticket`, audience сервісу) — `authorization.permissions`.
+
+### Permission-based авторизація
+`[RequirePermission(Permissions.Loans.Delete)]` на **кожному** endpoint (`Platform.ServiceDefaults/Security`): політика на кожен
+permission + `PermissionAuthorizationHandler`, що бере permissions з `authorization.permissions` (Keycloak RPT),
+`resource_access` (Keycloak), `scope` (IdentityServer) або з ролей через матрицю `Permissions.RoleMatrix`.
+
+| Endpoint | Permission | admin | manager | user | guest |
+|---|---|---|---|---|---|
+| `GET /api/loans` | loans:read | ✓ | ✓ | ✓ | ✗ |
+| `POST /api/loans` | loans:create | ✓ | ✗ | ✓ | ✗ |
+| `PUT /api/loans/{id}/details` (і issue/return/cancel/pay) | loans:update | ✓ | ✓ | ✗ | ✗ |
+| `DELETE /api/loans/{id}` | loans:delete | ✓ | ✗ | ✗ | ✗ |
+| `POST /api/loans/{id}/confirm` (approve) | loans:approve | ✓ | ✓ | ✗ | ✗ |
+| `GET /api/books` | books:read | ✓ | ✓ | ✓ | ✓ |
+| `POST /api/books` | books:create | ✓ | ✗ | ✗ | ✗ |
+| `PUT /api/books/{id}` (і price/copies/write-off) | books:update | ✓ | ✓ | ✗ | ✗ |
+| `DELETE /api/books/{id}` | books:delete | ✓ | ✗ | ✗ | ✗ |
+| `POST /api/books/{id}/publish` | books:publish | ✓ | ✓ | ✗ | ✗ |
+| `GET /api/payments` | payments:read | ✓ | ✗ | ✗ | ✗ |
+| `POST /api/payments/process` | payments:process | ✓ | ✗ | ✗ | ✗ |
+| `POST /api/payments/refund` | payments:refund | ✓ | ✗ | ✗ | ✗ |
+| `GET /api/reviews…` / запис відгуків | feedback:read / feedback:write | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ | ✓ / ✗ |
+
+Заборонений доступ — 403 (не 500), без токена — 401. Сценарій CI (`.github/ci/lab-09.sh` у гілці main) перевіряє всю матрицю
+токенами Keycloak і друкує фактичні коди відповіді.
+
+### Запуск і перевірка
+```bash
+dotnet run --project Platform.AppHost                        # SQL x2, Mongo, Redis, RabbitMQ, Keycloak, IdentityServer, сервіси
+cd infra/keycloak && pulumi login --local && pulumi stack init dev && pulumi preview && pulumi up   # realm library
+curl -X POST http://localhost:5000/auth/login -H "Content-Type: application/json" \
+     -d "{\"userNameOrEmail\":\"admin\",\"password\":\"Admin_Pass123!\"}"            # admin з Auth Service
+curl -X POST http://localhost:5010/connect/token -d grant_type=client_credentials \
+     -d client_id=aggregator_service -d client_secret=aggregator_secret -d "scope=loans:read books:read"
+```
+Postman: OAuth 2.0 -> Authorization Code (With PKCE), Auth URL `http://localhost:5010/connect/authorize`,
+Token URL `http://localhost:5010/connect/token`, client `postman` / `postman_secret`, користувачі alice/mike/uma/gary, пароль `Pass_123456`.
+Keycloak: Auth URL `http://localhost:8080/realms/library/protocol/openid-connect/auth`, client `library-postman` / `postman_secret`.
