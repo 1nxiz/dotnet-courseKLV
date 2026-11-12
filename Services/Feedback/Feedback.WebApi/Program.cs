@@ -6,12 +6,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("ServiceName", "feedback-api")
-    .WriteTo.Console(outputTemplate:
-        "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj} {Properties:j}{NewLine}{Exception}"));
+// ServiceDefaults (Лаб. 05): Serilog, OpenTelemetry (+ MongoDB spans), health checks, service discovery, resilience
+builder.AddServiceDefaults();
 
 // кожен шар надає власний метод розширення
 builder.Services
@@ -33,6 +29,7 @@ builder.Services.AddExceptionHandler<FeedbackExceptionHandler>();
 
 var app = builder.Build();
 
+app.UseCorrelationId();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
@@ -44,6 +41,7 @@ if (!app.Environment.IsProduction())
 }
 
 app.MapControllers();
+app.MapDefaultEndpoints();
 app.Run();
 
 /// <summary>Потрібен для WebApplicationFactory в API-тестах.</summary>

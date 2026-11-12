@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- .NET Aspire AppHost платформи (AppHost.cs): у Лаб. 02 запускає Loans.Api разом із SQL Server однією командою. -->
+  <!-- .NET Aspire AppHost платформи (AppHost.cs): SQL Server + MongoDB, три мікросервіси, Aggregator і API Gateway однією командою. -->
   <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.2" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,8 +9,13 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="9.5.2" />
+    <PackageReference Include="Aspire.Hosting.MongoDB" Version="9.5.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Services\Loans\Loans.Api\Loans.Api.csproj" />
+    <ProjectReference Include="..\Services\Books\Books.Api\Books.Api.csproj" />
+    <ProjectReference Include="..\Services\Feedback\Feedback.WebApi\Feedback.WebApi.csproj" />
+    <ProjectReference Include="..\Platform.Aggregator\Platform.Aggregator.csproj" />
+    <ProjectReference Include="..\Platform.ApiGateway\Platform.ApiGateway.csproj" />
   </ItemGroup>
 </Project>

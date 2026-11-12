@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Aggregator: паралельно опитує мікросервіси (typed HTTP-клієнти, service discovery) і складає одну відповідь. -->
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

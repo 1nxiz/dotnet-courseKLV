@@ -1,4 +1,5 @@
 using AutoMapper;
+using Books.Bll.Diagnostics;
 using Books.Bll.Dtos;
 using Books.Bll.Specifications;
 using Books.Dal.Repositories;
@@ -48,6 +49,8 @@ public class BookService : IBookService
 
     public async Task<BookCardDto> CreateAsync(CreateBookDto input, CancellationToken ct)
     {
+        using var activity = BooksDiagnostics.ActivitySource.StartActivity("CreateBook");
+        activity?.SetTag("book.isbn", input.Isbn);
         // правило, для якого потрібні інші дані з БД, перевіряє сервіс (правила самої сутності — сутність)
         if (await _uow.Books.ExistsByIsbnAsync(input.Isbn.Trim(), ct))
             throw new ConflictException($"Book with ISBN '{input.Isbn}' already exists");
@@ -92,8 +95,12 @@ public class BookService : IBookService
 
     public async Task<BookDto> ChangePriceAsync(int id, decimal newPrice, CancellationToken ct)
     {
+        using var activity = BooksDiagnostics.ActivitySource.StartActivity("ChangeBookPrice");
+        activity?.SetTag("book.id", id);
         var book = await LoadAsync(id, ct);
         var oldPrice = book.ChangePrice(newPrice);                         // інваріант (ціна > 0) перевіряє сутність
+        activity?.SetTag("book.old_price", oldPrice);
+        activity?.SetTag("book.new_price", newPrice);
         await _uow.SaveChangesAsync(ct);
         _logger.LogInformation("Book {BookId} price changed {OldPrice} -> {NewPrice}", id, oldPrice, newPrice);
         return _mapper.Map<BookDto>(book);

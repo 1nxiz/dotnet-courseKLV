@@ -77,7 +77,7 @@ dotnet ef migrations script --idempotent --project Services/Books/Books.Dal --st
 ## Serilog
 
 Секція `Serilog` в `appsettings.json`: рівні (Information/Warning/Error), sinks **Console** і **File** (`logs/books-api-*.log`,
-CompactJson), `Enrich.FromLogContext`; `LogContextMiddleware` додає `CorrelationId` і `UserId`, `RequestPath` додає ASP.NET Core;
+CompactJson), `Enrich.FromLogContext`; спільний `CorrelationIdMiddleware` (Platform.ServiceDefaults, Лаб. 05) додає `CorrelationId`, `RequestPath` додає ASP.NET Core;
 `UseSerilogRequestLogging()`; SQL-команди EF Core — на рівні Information.
 
 ## Запуск

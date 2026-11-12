@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Feedback.Application.Common.Diagnostics;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +19,9 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
         var name = typeof(TRequest).Name;
+        // Лаб. 05: кожна команда/запит — окремий span у трасі (дочірній до HTTP-запиту, батьківський для MongoDB)
+        using var activity = FeedbackDiagnostics.ActivitySource.StartActivity(name);
+        activity?.SetTag("cqrs.request", name);
         _logger.LogInformation("Handling {RequestName} {@Request}", name, request);
         var sw = Stopwatch.StartNew();
         try
@@ -28,6 +32,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogWarning("{RequestName} failed after {ElapsedMs} ms: {ExceptionType} {Error}",
                 name, sw.ElapsedMilliseconds, ex.GetType().Name, ex.Message);
             throw;

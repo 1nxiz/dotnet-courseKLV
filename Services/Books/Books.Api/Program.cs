@@ -1,6 +1,5 @@
 using System.Reflection;
 using Books.Api.ErrorHandling;
-using Books.Api.Logging;
 using Books.Bll;
 using Books.Dal;
 using Books.Dal.Seeding;
@@ -8,11 +7,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------- Serilog: структуровані логи; рівні й sinks (console + file) — у секції "Serilog" appsettings.json ----------
-builder.Host.UseSerilog((context, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("ServiceName", "books-api"));
+// ---------- ServiceDefaults (Лаб. 05): Serilog (console JSON + file sink з appsettings), OpenTelemetry, health, discovery ----------
+builder.AddServiceDefaults();
 
 var connectionString = builder.Configuration.GetConnectionString("BooksDb")
     ?? throw new InvalidOperationException("Connection string 'BooksDb' is missing");
@@ -36,9 +32,9 @@ builder.Services.AddExceptionHandler<ExceptionToProblemDetailsHandler>();
 
 var app = builder.Build();
 
+app.UseCorrelationId();               // спільний CorrelationId-middleware замість власного LogContextMiddleware
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-app.UseMiddleware<LogContextMiddleware>();
 app.UseSerilogRequestLogging();
 
 // ---------- Міграції + сідінг (сідінг вимикається в Production) ----------
@@ -58,6 +54,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapDefaultEndpoints();
 app.Run();
 
 /// <summary>Потрібен для WebApplicationFactory в API-тестах.</summary>

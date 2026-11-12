@@ -7,13 +7,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------- Логування: Serilog (структуровані логи, налаштування в appsettings.json -> "Serilog") ----------
-builder.Host.UseSerilog((context, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("ServiceName", "loans-api")
-    .WriteTo.Console(outputTemplate:
-        "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj} {Properties:j}{NewLine}{Exception}"));
+// ---------- ServiceDefaults (Лаб. 05): Serilog, OpenTelemetry, health checks, service discovery, resilience ----------
+builder.AddServiceDefaults();
 
 // ---------- Рядок підключення: appsettings.json, перевизначається змінною ConnectionStrings__LoansDb ----------
 var connectionString = builder.Configuration.GetConnectionString("LoansDb")
@@ -40,6 +35,7 @@ builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 
 var app = builder.Build();
 
+app.UseCorrelationId();               // X-Correlation-Id -> LogContext, заголовок відповіді
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
@@ -58,6 +54,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapDefaultEndpoints();
 app.Run();
 
 /// <summary>Потрібен для WebApplicationFactory в API-тестах.</summary>

@@ -1,5 +1,7 @@
 using System.Data;
+using System.Diagnostics;
 using AutoMapper;
+using Loans.Bll.Diagnostics;
 using Loans.Bll.Dtos;
 using Loans.Dal.Abstractions;
 using Loans.Domain.Common;
@@ -47,6 +49,9 @@ public sealed class LoanService : ILoanService
 
     public async Task<LoanDto> CreateAsync(CreateLoanDto input, string? user, CancellationToken ct)
     {
+        using var activity = LoansDiagnostics.ActivitySource.StartActivity("CreateLoan");
+        activity?.SetTag("reader.id", input.ReaderId);
+        activity?.SetTag("loan.items_count", input.Items.Count);
         // --- бізнес-валідація: правила, для яких потрібен стан БД або кілька полів одразу ---
         var errors = new Dictionary<string, string[]>();
         if (input.Items.GroupBy(i => i.BookId).Any(g => g.Count() > 1))
@@ -102,6 +107,7 @@ public sealed class LoanService : ILoanService
             throw;
         }
 
+        activity?.SetTag("loan.id", loan.Id);
         _logger.LogInformation("Loan {LoanId} ({LoanNumber}) created for reader {ReaderId}: {ItemsCount} items, total {Total}",
             loan.Id, loan.Number, loan.ReaderId, loan.Items.Count, loan.Total);
         return await GetByIdAsync(loan.Id, ct);
@@ -128,6 +134,8 @@ public sealed class LoanService : ILoanService
 
     public async Task ConfirmAsync(long id, string? user, CancellationToken ct)
     {
+        using var activity = LoansDiagnostics.ActivitySource.StartActivity("ConfirmLoan");
+        activity?.SetTag("loan.id", id);
         await _uow.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
@@ -148,8 +156,9 @@ public sealed class LoanService : ILoanService
             _logger.LogInformation("Loan {LoanId} confirmed, {ItemsCount} items reserved, status {Status}",
                 id, loan.Items.Count, LoanStatus.Reserved);
         }
-        catch
+        catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             await _uow.RollbackAsync(ct);                     // статус повертається назад
             throw;
         }
@@ -157,6 +166,9 @@ public sealed class LoanService : ILoanService
 
     public async Task<PaymentDto> PayAsync(long id, PayLoanDto input, string? idempotencyKey, string? user, CancellationToken ct)
     {
+        using var activity = LoansDiagnostics.ActivitySource.StartActivity("PayLoan");
+        activity?.SetTag("loan.id", id);
+        activity?.SetTag("payment.method", input.Method);
         var paymentId = await _uow.Loans.RegisterPaymentAsync(new Payment
         {
             LoanId = id,

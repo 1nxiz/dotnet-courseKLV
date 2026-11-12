@@ -1,19 +1,54 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Варіант 1: існуюча БД з Лаб. 01 (рядок підключення ConnectionStrings:LoansDb в appsettings.json AppHost)
-// var loansDb = builder.AddConnectionString("LoansDb");
+// ============ Інфраструктура (Docker-контейнери, дані переживають перезапуск завдяки volume) ============
 
-// Варіант 2 (використано): SQL Server у Docker-контейнері; пароль — параметр-секрет AppHost.
-// Ім'я ресурсу бази "LoansDb" збігається з ім'ям рядка підключення в Loans.Api,
-// тому Aspire передає його автоматично (ConnectionStrings__LoansDb) і код API не змінюється.
+// SQL Server: бази LoansDb (Лаб. 01-02, ADO.NET/Dapper) і BooksDb (Лаб. 03, EF Core). Пароль — параметр-секрет.
 var sqlPassword = builder.AddParameter("sql-password", secret: true);
 var sql = builder.AddSqlServer("sql", sqlPassword)
-                 .WithDataVolume("library-loans-sql-data");
+                 .WithDataVolume("library-sql-data");
 var loansDb = sql.AddDatabase("LoansDb");
+var booksDb = sql.AddDatabase("BooksDb");
 
-// Порожню базу в контейнері розгортає сам Loans.Api скриптами db/p1 (Database:InitializeOnStartup у Development)
-builder.AddProject<Projects.Loans_Api>("loans-api")
-       .WithReference(loansDb)
-       .WaitFor(sql);
+// MongoDB: база FeedbackDb (Лаб. 04)
+var mongo = builder.AddMongoDB("mongo")
+                   .WithDataVolume("library-mongo-data");
+var feedbackDb = mongo.AddDatabase("FeedbackDb");
+
+// ============ Мікросервіси ============
+// Імена ресурсів БД збігаються з іменами рядків підключення в сервісах (ConnectionStrings__LoansDb тощо),
+// тому код сервісів не змінюється. Імена ресурсів сервісів — це DNS-імена для service discovery.
+// Порожні бази створюють самі сервіси: Loans — скриптами db/p1, Books — міграціями EF, Feedback — індексами й сідінгом.
+
+var loansApi = builder.AddProject<Projects.Loans_Api>("loans-api")
+                      .WithReference(loansDb)
+                      .WaitFor(sql)
+                      .WithHttpHealthCheck("/health");
+
+var booksApi = builder.AddProject<Projects.Books_Api>("books-api")
+                      .WithReference(booksDb)
+                      .WaitFor(sql)
+                      .WithHttpHealthCheck("/health");
+
+var feedbackApi = builder.AddProject<Projects.Feedback_WebApi>("feedback-api")
+                         .WithReference(feedbackDb)
+                         .WaitFor(mongo)
+                         .WithHttpHealthCheck("/health");
+
+// ============ Aggregator: паралельно опитує три сервіси (service discovery за іменами ресурсів) ============
+var aggregator = builder.AddProject<Projects.Platform_Aggregator>("aggregator")
+                        .WithReference(loansApi).WaitFor(loansApi)
+                        .WithReference(booksApi).WaitFor(booksApi)
+                        .WithReference(feedbackApi).WaitFor(feedbackApi)
+                        .WithHttpHealthCheck("/health");
+
+// ============ API Gateway (YARP): єдина точка входу для клієнтів — http://localhost:5000 ============
+builder.AddProject<Projects.Platform_ApiGateway>("gateway")
+       .WithReference(loansApi)
+       .WithReference(booksApi)
+       .WithReference(feedbackApi)
+       .WithReference(aggregator)
+       .WaitFor(aggregator)
+       .WithExternalHttpEndpoints()
+       .WithHttpHealthCheck("/health");
 
 builder.Build().Run();

@@ -78,6 +78,9 @@ erDiagram
 README.md                 опис домену, запуск, розгортання БД, таблиця дублювання
 Platform.slnx             одне рішення на всю платформу (формат .slnx)
 Platform.AppHost/         оркестрація .NET Aspire (AppHost.cs)
+Platform.ServiceDefaults/ Лаб. 05 — спільні Serilog, OpenTelemetry, health checks, resilience, CorrelationId
+Platform.ApiGateway/      Лаб. 05 — API Gateway (YARP), єдина точка входу :5000
+Platform.Aggregator/      Лаб. 05 — агрегатор «повна картка видачі»
 docs/                     ERD-діаграми, опис контекстів, приклади документів MongoDB
 Services/
   Loans/                  Лаб. 02 — сервіс видач (ADO.NET + Dapper, тришарова архітектура)
@@ -238,3 +241,41 @@ Feedback.WebApi        контролери через ISender, ProblemDetails �
 dotnet run --project Services/Feedback/Feedback.WebApi       # http://localhost:5103/swagger
 curl -i -X POST http://localhost:5103/api/reviews -H "Content-Type: application/json" -d "{\"bookId\":2,\"bookTitle\":\"Тигролови\",\"authorId\":\"u-x\",\"authorName\":\"X\",\"rating\":10,\"text\":\"?\"}"   # 400 до обробника
 ```
+
+## Лаб. 05 — API Gateway, Aggregator, Aspire, наскрізне спостереження
+
+```
+Клієнт ──► Platform.ApiGateway (YARP, :5000) ──┬──► loans-api    (LoansDb, SQL Server)
+           X-Correlation-Id                    ├──► books-api    (BooksDb, SQL Server)
+                                               ├──► feedback-api (FeedbackDb, MongoDB)
+                                               └──► aggregator ──► loans-api, books-api, feedback-api (паралельно)
+```
+
+| Проєкт | Що робить |
+|---|---|
+| `Platform.AppHost/AppHost.cs` | Оркестрація Aspire: SQL Server (LoansDb, BooksDb) і MongoDB (FeedbackDb) у контейнерах із volume, три сервіси, Aggregator, Gateway; `WaitFor` + `WithHttpHealthCheck("/health")`; пароль SQL — параметр-секрет |
+| `Platform.ServiceDefaults` | `AddServiceDefaults()`: Serilog (CompactJson, enrichers, `writeToProviders` → Aspire Dashboard), OpenTelemetry (ASP.NET Core, HttpClient, SqlClient для Dapper й EF, MongoDB, власні ActivitySource, OTLP), health checks `/health` + `/alive`, service discovery, `AddStandardResilienceHandler`, `CorrelationIdMiddleware` + `CorrelationIdHandler` |
+| `Platform.ApiGateway` | YARP: маршрути `/api/loans`, `/api/readers` → loans-api; `/api/books` → books-api (RoundRobin); `/api/reviews` → feedback-api; `/api/aggregator` → aggregator. Адреси кластерів — логічні імена (`http://loans-api`), їх розв'язує service discovery. Логи: маршрут, адресат, статус, тривалість; помилки проксі |
+| `Platform.Aggregator` | `GET /api/aggregator/loans/{id}/full` — видача + актуальні дані книг + останні відгуки. Typed HttpClients (`https+http://loans-api` …), каталог і відгуки опитуються **паралельно** (`Task.WhenAll`). Недоступний books-/feedback-api → відповідь 200 з даними, що є, і `warnings`; недоступний loans-api → 503 ProblemDetails |
+
+**CorrelationId.** Gateway приймає `X-Correlation-Id` від клієнта або генерує новий, кладе в `LogContext` і в заголовок
+відповіді; YARP пересилає заголовок сервісам, а `CorrelationIdHandler` додає його до всіх вихідних HttpClient-запитів
+(Aggregator → сервіси). Одне значення видно в логах усіх п'яти процесів; у Dashboard — одна траса (W3C `traceparent`).
+
+**Власні spans:** `CreateLoan`, `ConfirmLoan`, `PayLoan` (Loans.Bll), `CreateBook`, `ChangeBookPrice` (Books.Bll),
+span на кожну команду/запит MediatR (Feedback, `LoggingBehavior`), `AggregateLoanCard` (Aggregator). Під ними —
+автоматичні spans SQL-запитів (SqlClient) і команд MongoDB.
+
+### Запуск
+```bash
+dotnet run --project Platform.AppHost          # потрібен Docker; Dashboard відкриється автоматично
+# точка входу для клієнтів:
+curl http://localhost:5000/api/books?page=1
+curl http://localhost:5000/api/loans/1
+curl http://localhost:5000/api/reviews?bookId=4
+curl -i -H "X-Correlation-Id: demo-123" http://localhost:5000/api/aggregator/loans/1/full
+```
+У Dashboard: **Resources** (стан, ендпоінти, змінні), **Console**, **Structured logs** (фільтр `CorrelationId = demo-123`),
+**Traces** (траса Gateway → Aggregator → три сервіси → SQL/MongoDB), **Metrics**.
+Перевірка часткової відмови: у Dashboard зупинити `feedback-api` (Stop) і повторити запит до агрегатора — у відповіді
+з'явиться `"warnings": ["feedback-api is unavailable"]`.

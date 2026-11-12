@@ -1,3 +1,4 @@
+using MongoDB.Driver.Core.Extensions.DiagnosticSources;
 using Feedback.Application.Common.Interfaces;
 using Feedback.Domain.Interfaces;
 using Feedback.Infrastructure.Persistence;
@@ -27,7 +28,13 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<IMongoClient>(sp =>
-            new MongoClient(sp.GetRequiredService<IOptions<MongoDbOptions>>().Value.ConnectionString));
+        {
+            var settings = MongoClientSettings.FromConnectionString(sp.GetRequiredService<IOptions<MongoDbOptions>>().Value.ConnectionString);
+            // Лаб. 05: кожна команда MongoDB стає span-ом (ActivitySource "MongoDB.Driver.Core.Extensions.DiagnosticSources")
+            settings.ClusterConfigurator = cb => cb.Subscribe(new DiagnosticsActivityEventSubscriber(
+                new InstrumentationOptions { CaptureCommandText = true }));
+            return new MongoClient(settings);
+        });
         services.AddSingleton<MongoDbContext>();
 
         services.AddScoped<IReviewRepository, ReviewRepository>();

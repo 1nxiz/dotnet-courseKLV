@@ -5,10 +5,10 @@
     <UserSecretsId>loans-api-3d9b1c52</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Loans.Bll\Loans.Bll.csproj" />
     <ProjectReference Include="..\Loans.Dal\Loans.Dal.csproj" />
   </ItemGroup>
