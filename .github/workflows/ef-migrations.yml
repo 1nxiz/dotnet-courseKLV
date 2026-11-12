@@ -1,0 +1,51 @@
+# Генерує міграцію EF Core для гілки лаби й публікує її як artifact (Migrations + SQL-скрипт).
+name: ef-migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Гілка"
+        required: true
+      project:
+        description: "Проєкт з DbContext (наприклад, Services/Books/Books.Dal)"
+        required: true
+      startup:
+        description: "Стартовий проєкт (наприклад, Services/Books/Books.Api)"
+        required: true
+      name:
+        description: "Назва міграції"
+        required: true
+        default: InitialCreate
+      context:
+        description: "DbContext (необов'язково)"
+        required: false
+        default: ""
+      outdir:
+        description: "Папка міграцій відносно проєкту"
+        required: false
+        default: Migrations
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Generate migration
+        run: |
+          dotnet tool install --global dotnet-ef --version 8.0.11
+          CTX=""
+          if [ -n "${{ inputs.context }}" ]; then CTX="--context ${{ inputs.context }}"; fi
+          dotnet ef migrations add "${{ inputs.name }}" --project "${{ inputs.project }}" --startup-project "${{ inputs.startup }}" --output-dir "${{ inputs.outdir }}" $CTX
+          dotnet ef migrations script --idempotent --project "${{ inputs.project }}" --startup-project "${{ inputs.startup }}" $CTX -o "/tmp/out/migrations.sql"
+          mkdir -p /tmp/out/project
+          cp -r "${{ inputs.project }}/${{ inputs.outdir }}" /tmp/out/project/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: migrations
+          path: /tmp/out
