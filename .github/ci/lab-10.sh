@@ -92,8 +92,11 @@ docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep ":latest" | g
 kind load docker-image $(for n in "${!PROJ[@]}"; do echo -n "$n:latest "; done) --name library >/dev/null
 
 pushd Platform.AppHost >/dev/null
-aspirate apply --help 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "^\s+-" | cut -c1-120
-kubectl apply -k aspirate-output
+# секрети в kustomize-маніфестах — це generator-файли *.secrets, які aspirate apply розшифровує зі state перед kubectl apply -k
+aspirate apply --non-interactive --secret-password "ci-aspirate-secret" --kube-context kind-library > /tmp/aspirate-apply.log 2>&1 \
+  || { sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate-apply.log | tail -60; exit 1; }
+sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate-apply.log | grep -vE "^\s*$" | tail -15
+kubectl -n library-aspirate get secrets
 popd >/dev/null
 A="kubectl -n library-aspirate"
 for s in $($A get statefulset -o name); do $A rollout status $s --timeout=600s; done
