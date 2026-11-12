@@ -35,7 +35,9 @@ jobs:
           ref: ${{ inputs.ref }}
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            8.0.x
+            9.0.x
       - name: Generate migration
         run: |
           dotnet tool install --global dotnet-ef --version 8.0.11

@@ -24,7 +24,7 @@ if [ -f db/deploy.sh ]; then
   echo "::endgroup::"
 fi
 
-SLN=$(ls *.sln 2>/dev/null | head -1 || true)
+SLN=$(ls *.slnx *.sln 2>/dev/null | head -1 || true)
 if [ -n "$SLN" ]; then
   echo "::group::dotnet build $SLN"
   dotnet build "$SLN" -c Release
