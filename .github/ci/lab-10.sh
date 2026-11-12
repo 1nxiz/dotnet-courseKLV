@@ -59,6 +59,8 @@ $K scale deploy/sql --replicas=1
 $K rollout status deploy/sql --timeout=180s
 for i in $(seq 1 60); do $K get pods -l app=books-api -o jsonpath='{range .items[*]}{.status.containerStatuses[0].ready}{" "}{end}' | grep -q "true true" && break; sleep 5; done
 $K get pods -l app=books-api
+$K get pods -l app=books-api -o jsonpath='{range .items[*]}{.status.containerStatuses[0].ready}{" "}{end}' | grep -q "true true"
+echo "   database back (data kept in PVC) -> pods Ready again without restarts"
 
 echo ">> ConfigMap change is applied after rollout restart; Secret is only Base64-encoded"
 $K patch configmap gateway-config --type merge -p '{"data":{"Serilog__MinimumLevel__Default":"Warning"}}'
@@ -70,14 +72,49 @@ kubectl delete namespace library --wait=false
 
 echo; echo "================ Part 1: Aspir8 (aspirate) ================"
 dotnet tool install -g aspirate --version 9.1.0 >/dev/null; export PATH=$PATH:$HOME/.dotnet/tools
+echo ">> images for every project (as aspirate does: dotnet publish /t:PublishContainer, no Dockerfile)"
+declare -A PROJ=( [identityserver]=Platform.IdentityServer/Platform.IdentityServer.csproj [auth-api]=Services/Auth/Auth.Api/Auth.Api.csproj
+  [loans-api]=Services/Loans/Loans.Api/Loans.Api.csproj [books-api]=Services/Books/Books.Api/Books.Api.csproj
+  [feedback-api]=Services/Feedback/Feedback.WebApi/Feedback.WebApi.csproj [payments-api]=Services/Payments/Payments.Api/Payments.Api.csproj
+  [aggregator]=Platform.Aggregator/Platform.Aggregator.csproj [gateway]=Platform.ApiGateway/Platform.ApiGateway.csproj )
+for name in "${!PROJ[@]}"; do
+  dotnet publish "${PROJ[$name]}" -c Release -t:PublishContainer -p:ContainerRepository=$name -p:ContainerImageTag=latest -v q -nologo 2>&1 | grep -E "error|Pushed image" | sed "s/^/   /"
+done
+docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep ":latest" | grep -E "$(echo ${!PROJ[@]} | tr ' ' '|')"
+kind load docker-image $(for n in "${!PROJ[@]}"; do echo -n "$n:latest "; done) --name library >/dev/null
+
 pushd Platform.AppHost >/dev/null
-aspirate generate --non-interactive --disable-secrets --skip-build --image-pull-policy IfNotPresent \
-  --namespace library-aspirate --container-image-tag latest --output-format kustomize \
-  -pa sql-password='Library_Pass123!' -pa keycloak-admin=admin -pa keycloak-password='Admin_Pass123!' 2>&1 | tail -15
-find aspirate-output -type f | sort
-echo "---- images"; grep -rh "image:" aspirate-output | sort -u
-echo "---- loans-api"; cat aspirate-output/loans-api/*.yaml | head -80
+aspirate generate --non-interactive --secret-password "ci-aspirate-secret" --skip-build --include-dashboard true \
+  --image-pull-policy IfNotPresent --namespace library-aspirate --container-image-tag latest --output-format kustomize \
+  -pa sql-password='Library_Pass123!' -pa keycloak-admin=admin -pa keycloak-password='Admin_Pass123!' 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Done|Error|error|Execution" | tail -40
+echo "---- generated files"; find aspirate-output -type f | sort
+echo "---- secrets are NOT in ConfigMaps:"; grep -rl "Password=\|password=" aspirate-output --include=kustomization.yaml || echo "   none"
+aspirate apply --help 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "^\s+-" | cut -c1-120
+kubectl apply -k aspirate-output
 popd >/dev/null
-tar -czf - -C Platform.AppHost aspirate-output aspirate-state.json 2>/dev/null | base64 -w0 > /tmp/aspirate.b64 || tar -czf - -C Platform.AppHost aspirate-output | base64 -w0 > /tmp/aspirate.b64
-echo "=====BEGIN-ASPIRATE-TGZ====="; cat /tmp/aspirate.b64; echo; echo "=====END-ASPIRATE-TGZ====="
-echo "Lab 10 (discovery) done"
+A="kubectl -n library-aspirate"
+for s in $($A get statefulset -o name); do $A rollout status $s --timeout=600s; done
+$A wait --for=condition=available deploy --all --timeout=900s || true
+$A get pods,services
+NOT_RUNNING=$($A get pods --no-headers | awk '$3!="Running"' | wc -l)
+$A get pods --no-headers | awk '$3!="Running"' || true
+for d in $($A get deploy -o name); do echo "== logs $d (Error/Fatal)"; $A logs $d --tail=400 2>/dev/null | grep -E '"@l":"(Error|Fatal)"' | grep -o '"@mt":"[^"]*"' | sort | uniq -c | head -5; done
+test "$NOT_RUNNING" -eq 0
+
+GP=$($A get service gateway -o jsonpath='{.spec.ports[?(@.name=="http")].port}')
+$A port-forward service/gateway 8080:$GP >/tmp/pf2.log 2>&1 &
+PF=$!; sleep 5
+expect 401 "http://localhost:8080/api/books"
+for i in $(seq 1 30); do code=$(curl -s -o /tmp/resp.json -w "%{http_code}" -X POST http://localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"userNameOrEmail":"admin","password":"Admin_Pass123!"}'); [ "$code" = 200 ] && break; sleep 5; done
+echo "   [$code] POST /auth/login (auth-api in cluster)"
+ADM=$(python3 -c "import json;print(json.load(open('/tmp/resp.json'))['accessToken'])")
+expect 200 -H "Authorization: Bearer $ADM" "http://localhost:8080/api/books?page=1&pageSize=3"
+python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   books (aspirate):',[b['title'] for b in d['items']]);assert len(d['items'])>0"
+expect 200 -H "Authorization: Bearer $ADM" "http://localhost:8080/api/loans?page=1&pageSize=2"
+expect 200 -H "Authorization: Bearer $ADM" "http://localhost:8080/api/aggregator/loans/1/full?cache=false"
+python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   aggregator (gRPC inside cluster): books',len(d['books']),'warnings',d['warnings'])"
+kill $PF || true
+
+tar -czf /tmp/aspirate-output.tgz --exclude='*.secrets' --exclude='.*.secrets' -C Platform.AppHost aspirate-output
+echo "=====BEGIN-ASPIRATE-TGZ====="; base64 -w0 /tmp/aspirate-output.tgz; echo; echo "=====END-ASPIRATE-TGZ====="
+echo "Lab 10 smoke checks passed"
