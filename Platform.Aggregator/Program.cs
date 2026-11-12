@@ -1,3 +1,4 @@
+using StackExchange.Redis;
 using System.Text.Json.Serialization;
 using Grpc.Core;
 using Library.Books.Grpc;
@@ -31,7 +32,18 @@ builder.Services.AddAggregatorHealthChecks(builder.Configuration);
 
 // ---------- Кеш складених відповідей: Redis через Aspire-інтеграцію (без Redis — у пам'яті) ----------
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
-    builder.AddRedisDistributedCache("redis", settings => settings.DisableHealthChecks = true);   // своя перевірка — Degraded
+    builder.AddRedisDistributedCache("redis",
+        settings => settings.DisableHealthChecks = true,     // власна перевірка Redis зі статусом Degraded (Лаб. 07)
+        options =>
+        {
+            // кеш — необов'язкова залежність: при недоступному Redis команда має падати за ~1 с, а не чекати 5 с у черзі,
+            // щоб TwoLevelCache одразу перейшов на читання з БД (graceful degradation)
+            options.AbortOnConnectFail = false;
+            options.ConnectTimeout = 2000;
+            options.AsyncTimeout = 1000;
+            options.SyncTimeout = 1000;
+            options.BacklogPolicy = BacklogPolicy.FailFast;
+        });
 else
     builder.Services.AddDistributedMemoryCache();
 

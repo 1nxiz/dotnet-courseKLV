@@ -1,3 +1,4 @@
+using StackExchange.Redis;
 using System.Reflection;
 using Feedback.Application;
 using Feedback.Infrastructure;
@@ -27,7 +28,17 @@ builder.Services.AddMemoryCache(options =>
 });
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
     builder.AddRedisDistributedCache("redis",
-        settings => settings.DisableHealthChecks = true);   // власна перевірка Redis зі статусом Degraded (Лаб. 07)
+        settings => settings.DisableHealthChecks = true,     // власна перевірка Redis зі статусом Degraded (Лаб. 07)
+        options =>
+        {
+            // кеш — необов'язкова залежність: при недоступному Redis команда має падати за ~1 с, а не чекати 5 с у черзі,
+            // щоб TwoLevelCache одразу перейшов на читання з БД (graceful degradation)
+            options.AbortOnConnectFail = false;
+            options.ConnectTimeout = 2000;
+            options.AsyncTimeout = 1000;
+            options.SyncTimeout = 1000;
+            options.BacklogPolicy = BacklogPolicy.FailFast;
+        });
 else
     builder.Services.AddDistributedMemoryCache();
 

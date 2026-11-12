@@ -1,3 +1,4 @@
+using StackExchange.Redis;
 using System.Reflection;
 using Loans.Api.ErrorHandling;
 using Loans.Api.Grpc;
@@ -29,8 +30,18 @@ builder.Services.AddMemoryCache(options =>
     options.TrackStatistics = true;
 });
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
-    builder.AddRedisDistributedCache("redis",            // ConnectionStrings:redis передає AppHost
-        settings => settings.DisableHealthChecks = true);  // власна перевірка зі статусом Degraded — нижче
+    builder.AddRedisDistributedCache("redis",
+        settings => settings.DisableHealthChecks = true,     // власна перевірка Redis зі статусом Degraded (Лаб. 07)
+        options =>
+        {
+            // кеш — необов'язкова залежність: при недоступному Redis команда має падати за ~1 с, а не чекати 5 с у черзі,
+            // щоб TwoLevelCache одразу перейшов на читання з БД (graceful degradation)
+            options.AbortOnConnectFail = false;
+            options.ConnectTimeout = 2000;
+            options.AsyncTimeout = 1000;
+            options.SyncTimeout = 1000;
+            options.BacklogPolicy = BacklogPolicy.FailFast;
+        });
 else
     builder.Services.AddDistributedMemoryCache();        // локальний запуск без Redis
 
