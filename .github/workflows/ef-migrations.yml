@@ -47,6 +47,10 @@ jobs:
           dotnet ef migrations script --idempotent --project "${{ inputs.project }}" --startup-project "${{ inputs.startup }}" $CTX -o "/tmp/out/migrations.sql"
           mkdir -p /tmp/out/project
           cp -r "${{ inputs.project }}/${{ inputs.outdir }}" /tmp/out/project/
+          echo "=====BEGIN-MIGRATIONS-TGZ====="
+          tar -czf - -C /tmp/out . | base64 -w 0
+          echo
+          echo "=====END-MIGRATIONS-TGZ====="
       - uses: actions/upload-artifact@v4
         with:
           name: migrations
