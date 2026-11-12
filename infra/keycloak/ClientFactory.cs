@@ -68,7 +68,7 @@ public static class ClientFactory
         });
 
     /// <summary>Audience mapper на кожен Resource Server: токен клієнта придатний для loans-api, books-api, ...</summary>
-    public static Client WithAudiences(this Client client, Output<string> realmId, IEnumerable<string> audiences)
+    public static Client WithAudiences(this Client client, Output<string> realmId, IEnumerable<string> audiences, IReadOnlyDictionary<string, Client> resourceServers)
     {
         foreach (var audience in audiences)
             _ = new AudienceProtocolMapper($"{client.GetResourceName()}-aud-{audience}", new AudienceProtocolMapperArgs
@@ -79,7 +79,7 @@ public static class ClientFactory
                 IncludedClientAudience = audience,
                 AddToAccessToken = true,
                 AddToIdToken = false
-            });
+            }, new CustomResourceOptions { DependsOn = { resourceServers[audience] } });   // mapper перевіряє, що клієнт-audience вже існує
         return client;
     }
 

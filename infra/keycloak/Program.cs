@@ -149,16 +149,16 @@ return await Deployment.RunAsync(() =>
     var audiences = Matrix.ResourceServers.Keys.ToArray();
     var postman = ClientFactory.AuthorizationCode("client-postman", realmId, "library-postman", "postman_secret",
             "https://oauth.pstmn.io/v1/callback", "http://localhost:5555/callback")
-        .WithAudiences(realmId, audiences);
+        .WithAudiences(realmId, audiences, resourceServers);
     var swagger = ClientFactory.PublicPkce("client-swagger", realmId, "library-swagger",
             ["http://localhost:5000/swagger/oauth2-redirect.html", "http://localhost:5101/swagger/oauth2-redirect.html",
              "http://localhost:5102/swagger/oauth2-redirect.html"],
             ["http://localhost:5000", "http://localhost:5101", "http://localhost:5102"])
-        .WithAudiences(realmId, audiences);
+        .WithAudiences(realmId, audiences, resourceServers);
     var aggregator = ClientFactory.ClientCredentials("client-aggregator", realmId, "library-aggregator", "aggregator_secret")
-        .WithAudiences(realmId, ["loans-api", "books-api", "feedback-api"]);
+        .WithAudiences(realmId, ["loans-api", "books-api", "feedback-api"], resourceServers);
     var cli = ClientFactory.DirectGrantForTests("client-cli", realmId, "library-cli")
-        .WithAudiences(realmId, audiences);
+        .WithAudiences(realmId, audiences, resourceServers);
 
     // client-level ролі для service account агрегатора
     foreach (var permission in Matrix.AggregatorPermissions)
