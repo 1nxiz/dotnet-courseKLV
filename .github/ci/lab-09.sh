@@ -95,8 +95,12 @@ echo "   locked out after 5 failed attempts"
 
 echo; echo "================ Part 2: Duende IdentityServer ================"
 curl -s $IS/.well-known/openid-configuration | python3 -c "import json,sys;d=json.load(sys.stdin);print('   issuer',d['issuer'],'| grants',d['grant_types_supported']);assert d['issuer']=='https://identity.library.local'"
+curl -s $IS/.well-known/openid-configuration | python3 -c "import json,sys;d=json.load(sys.stdin);print('   jwks_uri',d['jwks_uri'])"
 expect 200 -X POST $IS/connect/token -d grant_type=client_credentials -d client_id=aggregator_service -d client_secret=aggregator_secret -d "scope=loans:read books:read feedback:read"
 CC=$(field "['access_token']")
+curl -s $IS/.well-known/openid-configuration/jwks | python3 -c "import json,sys;d=json.load(sys.stdin);print('   jwks keys:',[{k:v for k,v in x.items() if k in ('kty','use','kid','alg')} for x in d['keys']])"
+jwt_header() { python3 -c "import base64,json,sys;p=sys.argv[1].split('.')[0];p+='='*(-len(p)%4);print(json.loads(base64.urlsafe_b64decode(p)))" "$1"; }
+echo "   token header: $(jwt_header "$CC")"
 jwt "$CC" | python3 -c "import json,sys;c=json.load(sys.stdin);print('   client credentials token:',{k:c.get(k) for k in ('iss','aud','client_id','scope','sub')});assert 'sub' not in c"
 expect 200 -H "Authorization: Bearer $CC" "http://localhost:5101/api/loans?page=1&pageSize=1"
 expect 403 -H "Authorization: Bearer $CC" -X DELETE http://localhost:5101/api/loans/999999
