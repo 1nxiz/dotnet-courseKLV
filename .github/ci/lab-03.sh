@@ -25,10 +25,12 @@ echo ">> eager vs explicit loading in SQL log"
 grep -c "Executed DbCommand" /tmp/svc-books.log || true
 
 echo ">> restart: seeding must not duplicate"
+expect 200 "$API/api/books?pageSize=100"
+BEFORE=$(python3 -c "import json;print(json.load(open('/tmp/resp.json'))['totalCount'])")
 pkill -f "Books.Api" || true; sleep 3
 start_service books2 Services/Books/Books.Api 5102
 expect 200 "$API/api/books?pageSize=100"
-python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   totalCount after restart',d['totalCount']);assert d['totalCount']==9"
+python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   totalCount after restart',d['totalCount']);assert d['totalCount']==$BEFORE"
 expect 200 $API/api/books/genres
 python3 -c "import json;assert len(json.load(open('/tmp/resp.json')))==6"
 echo "Lab 03 smoke checks passed"
