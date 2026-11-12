@@ -7,6 +7,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Grpc.Core.Api" Version="2.67.0" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.*" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="9.5.2" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />

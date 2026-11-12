@@ -1,5 +1,6 @@
 using System.Reflection;
 using Loans.Api.ErrorHandling;
+using Loans.Api.Grpc;
 using Loans.Bll;
 using Loans.Dal;
 using Loans.Dal.Initialization;
@@ -17,6 +18,26 @@ var connectionString = builder.Configuration.GetConnectionString("LoansDb")
 // ---------- DI: DAL (Unit of Work — Scoped), BLL (сервіси, AutoMapper) ----------
 builder.Services.AddLoansDal(connectionString);
 builder.Services.AddLoansBll(builder.Configuration["AutoMapper:LicenseKey"]);
+
+// ---------- Кешування (Лаб. 06): L1 — пам'ять з обмеженням розміру, L2 — Redis через Aspire-інтеграцію ----------
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = builder.Configuration.GetValue("Caching:MemorySizeLimit", 5_000);
+    options.CompactionPercentage = 0.25;
+    options.TrackStatistics = true;
+});
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
+    builder.AddRedisDistributedCache("redis");           // ConnectionStrings:redis передає AppHost
+else
+    builder.Services.AddDistributedMemoryCache();        // локальний запуск без Redis
+
+// ---------- gRPC (Лаб. 06): endpoint "grpc" лише HTTP/2 (Kestrel:Endpoints), REST — на "http" ----------
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<GrpcLoggingInterceptor>();
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+builder.Services.AddGrpcReflection();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -54,6 +75,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapGrpcService<LoansGrpcService>();
+if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();
 

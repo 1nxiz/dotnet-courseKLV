@@ -1,3 +1,4 @@
+using Feedback.Application.Caching;
 using Feedback.Application.Common.Exceptions;
 using Feedback.Application.Common.Interfaces;
 using Feedback.Application.Common.Messaging;
@@ -8,7 +9,12 @@ using MongoDB.Bson;
 
 namespace Feedback.Application.Queries.GetReviewById;
 
-public record GetReviewByIdQuery(string Id) : IQuery<ReviewDetailsDto>;
+/// <summary>Кешований запит (ICachedQuery): повторне читання того самого відгуку не звертається до MongoDB.</summary>
+public record GetReviewByIdQuery(string Id) : IQuery<ReviewDetailsDto>, ICachedQuery
+{
+    public string CacheKey => CacheKeys.Review(Id);
+    public CachePolicy Policy => CachePolicy.Review;
+}
 
 public sealed class GetReviewByIdQueryValidator : AbstractValidator<GetReviewByIdQuery>
 {

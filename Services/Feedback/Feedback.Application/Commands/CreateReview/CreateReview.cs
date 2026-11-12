@@ -1,3 +1,4 @@
+using Feedback.Application.Caching;
 using Feedback.Application.Common.Messaging;
 using Feedback.Domain.Entities;
 using Feedback.Domain.Interfaces;
@@ -42,11 +43,13 @@ public sealed class CreateReviewCommandValidator : AbstractValidator<CreateRevie
 public sealed class CreateReviewCommandHandler : IRequestHandler<CreateReviewCommand, string>
 {
     private readonly IReviewRepository _reviews;
+    private readonly IFeedbackCache _cache;
     private readonly ILogger<CreateReviewCommandHandler> _logger;
 
-    public CreateReviewCommandHandler(IReviewRepository reviews, ILogger<CreateReviewCommandHandler> logger)
+    public CreateReviewCommandHandler(IReviewRepository reviews, IFeedbackCache cache, ILogger<CreateReviewCommandHandler> logger)
     {
         _reviews = reviews;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -57,6 +60,7 @@ public sealed class CreateReviewCommandHandler : IRequestHandler<CreateReviewCom
             new Rating(cmd.Rating), cmd.Text, cmd.Photos, progress);
 
         await _reviews.AddAsync(review, ct);                 // унікальний індекс страхує від гонки -> 409
+        await _cache.InvalidateAsync("ReviewCreated", ct, CacheKeys.BookSummary(review.BookId));
         _logger.LogInformation("Review {ReviewId} created for book {BookId} by {UserId} with rating {Rating}",
             review.Id, review.BookId, review.Author.UserId, review.Rating.Value);
         return review.Id.ToString();

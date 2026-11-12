@@ -1,7 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <!-- Aggregator: паралельно опитує мікросервіси (typed HTTP-клієнти, service discovery) і складає одну відповідь. -->
+  <!-- Aggregator: паралельно опитує мікросервіси через gRPC (Лаб. 06; HTTP-клієнти Лаб. 05 лишено для порівняння затримок)
+       і кешує складену відповідь у Redis. -->
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.67.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
+    <PackageReference Include="Grpc.Tools" Version="2.67.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="9.5.2" />
+  </ItemGroup>
+  <!-- ті самі .proto, що й у сервісах, але генерується лише клієнтська частина -->
+  <ItemGroup>
+    <Protobuf Include="..\Services\Loans\Loans.Api\Protos\loans.proto" GrpcServices="Client" Link="Protos\loans.proto" />
+    <Protobuf Include="..\Services\Books\Books.Api\Protos\books.proto" GrpcServices="Client" Link="Protos\books.proto" />
+    <Protobuf Include="..\Services\Feedback\Feedback.WebApi\Protos\feedback.proto" GrpcServices="Client" Link="Protos\feedback.proto" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />

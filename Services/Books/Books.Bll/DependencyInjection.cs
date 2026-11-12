@@ -1,3 +1,4 @@
+using Books.Bll.Caching;
 using Books.Bll.Mapping;
 using Books.Bll.Services;
 using Books.Bll.Validation;
@@ -18,6 +19,12 @@ public static class DependencyInjection
 
         // FluentValidation: валідатори реєструються, а викликаються явно (AddFluentValidation застарів)
         services.AddValidatorsFromAssemblyContaining<CreateBookDtoValidator>();
+
+        // Кешування (Лаб. 06): IMemoryCache (L1) і IDistributedCache (L2, Redis) реєструє Api-хост;
+        // тут — дворівнева обгортка, метрики й прогрівання
+        services.AddSingleton<CacheMetrics>();
+        services.AddScoped<IBooksCache, TwoLevelCache>();
+        services.AddHostedService<CacheWarmupService>();
 
         services.AddScoped<IBookService, BookService>();
         services.AddScoped<IGenreService, GenreService>();

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+// Контракт сервісу відгуків для внутрішніх клієнтів (Aggregator).
+// Номери полів незмінні після публікації.
+option csharp_namespace = "Library.Feedback.Grpc";
+
+package library.feedback.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service FeedbackService {
+  // Підсумки відгуків для кількох книг одним викликом (до 50 book_ids): кількість, середня оцінка, останні відгуки.
+  rpc GetBooksReviews (GetBooksReviewsRequest) returns (BooksReviewsReply);
+  // Відгук за id. NOT_FOUND — немає, INVALID_ARGUMENT — id не є ObjectId.
+  rpc GetReview (GetReviewRequest) returns (ReviewReply);
+}
+
+message GetBooksReviewsRequest {
+  repeated int64 book_ids = 1;
+  int32 latest_per_book = 2;   // 0 -> 3 за замовчуванням, максимум 5
+}
+
+message GetReviewRequest {
+  string id = 1;
+}
+
+message ReviewReply {
+  string id = 1;
+  int64 book_id = 2;
+  string author_name = 3;
+  int32 rating = 4;
+  string text = 5;
+  google.protobuf.Timestamp created_at = 6;
+  int32 comments_count = 7;
+}
+
+message BookReviews {
+  int64 book_id = 1;
+  int64 reviews_count = 2;
+  double average_rating = 3;
+  repeated ReviewReply latest = 4;
+}
+
+message BooksReviewsReply {
+  repeated BookReviews books = 1;
+}

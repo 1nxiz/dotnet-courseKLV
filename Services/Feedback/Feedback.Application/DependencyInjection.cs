@@ -1,4 +1,5 @@
 using Feedback.Application.Behaviors;
+using Feedback.Application.Caching;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,10 +19,15 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));            // 1 — зовнішній
             cfg.AddOpenBehavior(typeof(UnhandledExceptionBehavior<,>)); // 2
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));         // 3
-            cfg.AddOpenBehavior(typeof(PerformanceBehavior<,>));        // 4 — біля обробника
+            cfg.AddOpenBehavior(typeof(CachingBehavior<,>));            // 4 — кеш для ICachedQuery (Лаб. 06)
+            cfg.AddOpenBehavior(typeof(PerformanceBehavior<,>));        // 5 — біля обробника
         });
 
         services.AddValidatorsFromAssembly(assembly);
+
+        // Кешування (Лаб. 06): L1 IMemoryCache і L2 IDistributedCache (Redis) реєструє WebApi-хост
+        services.AddSingleton<CacheMetrics>();
+        services.AddScoped<IFeedbackCache, TwoLevelCache>();
 
         services.AddAutoMapper(cfg =>
         {

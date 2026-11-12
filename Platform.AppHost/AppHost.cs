@@ -14,6 +14,11 @@ var mongo = builder.AddMongoDB("mongo")
                    .WithDataVolume("library-mongo-data");
 var feedbackDb = mongo.AddDatabase("FeedbackDb");
 
+// Redis (Лаб. 06): L2-кеш сервісів і кеш складених відповідей Aggregator. Рядок підключення ConnectionStrings:redis
+// Aspire передає всім, хто має WithReference(redis).
+var redis = builder.AddRedis("redis")
+                   .WithDataVolume("library-redis-data");
+
 // ============ Мікросервіси ============
 // Імена ресурсів БД збігаються з іменами рядків підключення в сервісах (ConnectionStrings__LoansDb тощо),
 // тому код сервісів не змінюється. Імена ресурсів сервісів — це DNS-імена для service discovery.
@@ -22,23 +27,28 @@ var feedbackDb = mongo.AddDatabase("FeedbackDb");
 var loansApi = builder.AddProject<Projects.Loans_Api>("loans-api")
                       .WithReference(loansDb)
                       .WaitFor(sql)
+                      .WithReference(redis).WaitFor(redis)
                       .WithHttpHealthCheck("/health");
 
 var booksApi = builder.AddProject<Projects.Books_Api>("books-api")
                       .WithReference(booksDb)
                       .WaitFor(sql)
+                      .WithReference(redis).WaitFor(redis)
                       .WithHttpHealthCheck("/health");
 
 var feedbackApi = builder.AddProject<Projects.Feedback_WebApi>("feedback-api")
                          .WithReference(feedbackDb)
                          .WaitFor(mongo)
+                         .WithReference(redis).WaitFor(redis)
                          .WithHttpHealthCheck("/health");
 
-// ============ Aggregator: паралельно опитує три сервіси (service discovery за іменами ресурсів) ============
+// ============ Aggregator: паралельно опитує три сервіси через gRPC (endpoint "grpc" кожного сервісу) ============
+// Ендпоінти сервісів "http" (REST) і "grpc" (HTTP/2) Aspire бере з Kestrel:Endpoints у appsettings.json сервісів.
 var aggregator = builder.AddProject<Projects.Platform_Aggregator>("aggregator")
                         .WithReference(loansApi).WaitFor(loansApi)
                         .WithReference(booksApi).WaitFor(booksApi)
                         .WithReference(feedbackApi).WaitFor(feedbackApi)
+                        .WithReference(redis).WaitFor(redis)
                         .WithHttpHealthCheck("/health");
 
 // ============ API Gateway (YARP): єдина точка входу для клієнтів — http://localhost:5000 ============

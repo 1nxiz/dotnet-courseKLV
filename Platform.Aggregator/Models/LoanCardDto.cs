@@ -14,7 +14,12 @@ public record LoanCardDto(
     DateTime? DueDate,
     decimal Total,
     IReadOnlyList<LoanCardBookDto> Books,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    /// <summary>Яким транспортом зібрано (grpc / http) і чи з кешу — для порівняння й діагностики.</summary>
+    public string? Transport { get; init; }
+    public bool FromCache { get; init; }
+}
 
 /// <summary>Книга у видачі: знімок із позиції видачі + поточні дані каталогу + відгуки.</summary>
 public record LoanCardBookDto(
@@ -23,6 +28,7 @@ public record LoanCardBookDto(
     decimal PriceAtLoan,
     int Quantity,
     CatalogInfoDto? Catalog,
+    long? ReviewsCount,
     double? AverageRating,
     IReadOnlyList<ReviewView>? LatestReviews);
 

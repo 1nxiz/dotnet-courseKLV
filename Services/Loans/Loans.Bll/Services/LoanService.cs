@@ -1,6 +1,7 @@
 using System.Data;
 using System.Diagnostics;
 using AutoMapper;
+using Loans.Bll.Caching;
 using Loans.Bll.Diagnostics;
 using Loans.Bll.Dtos;
 using Loans.Dal.Abstractions;
@@ -16,12 +17,14 @@ public sealed class LoanService : ILoanService
 {
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly ILoansCache _cache;
     private readonly ILogger<LoanService> _logger;
 
-    public LoanService(IUnitOfWork uow, IMapper mapper, ILogger<LoanService> logger)
+    public LoanService(IUnitOfWork uow, IMapper mapper, ILoansCache cache, ILogger<LoanService> logger)
     {
         _uow = uow;
         _mapper = mapper;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -34,12 +37,14 @@ public sealed class LoanService : ILoanService
             _mapper.Map<List<LoanSummaryDto>>(result.Items), result.TotalCount, result.Page, result.PageSize);
     }
 
-    public async Task<LoanDto> GetByIdAsync(long id, CancellationToken ct)
-    {
-        var loan = await _uow.Loans.GetCardAsync(id, ct)
-                   ?? throw new NotFoundException($"Loan {id} not found");
-        return _mapper.Map<LoanDto>(loan);
-    }
+    /// <summary>Картка видачі (REST, gRPC для Aggregator): cache-aside L1 -> L2 -> БД, короткі TTL.</summary>
+    public Task<LoanDto> GetByIdAsync(long id, CancellationToken ct)
+        => _cache.GetOrCreateAsync(CacheKeys.Loan(id), async token =>
+        {
+            var loan = await _uow.Loans.GetCardAsync(id, token)
+                       ?? throw new NotFoundException($"Loan {id} not found");
+            return _mapper.Map<LoanDto>(loan);
+        }, CachePolicy.LoanCard, ct);
 
     public async Task<IReadOnlyList<PaymentDto>> GetPaymentsAsync(long id, CancellationToken ct)
     {
@@ -128,6 +133,7 @@ public sealed class LoanService : ILoanService
             Comment = input.Comment
         }, expected, user, ct);                               // 50003 -> ConcurrencyException -> 409
 
+        await _cache.InvalidateAsync("LoanDetailsUpdated", ct, CacheKeys.Loan(id));   // синхронно з записом
         _logger.LogInformation("Loan {LoanId} delivery details updated to {DeliveryType}", id, input.DeliveryType);
         return new RowVersionDto(Convert.ToBase64String(newVersion));
     }
@@ -153,6 +159,7 @@ public sealed class LoanService : ILoanService
                 await _uow.Books.ReserveCopiesAsync(item.BookId, item.Quantity, ct);
 
             await _uow.CommitAsync(ct);
+            await _cache.InvalidateAsync("LoanConfirmed", ct, CacheKeys.Loan(id));   // синхронно з записом
             _logger.LogInformation("Loan {LoanId} confirmed, {ItemsCount} items reserved, status {Status}",
                 id, loan.Items.Count, LoanStatus.Reserved);
         }
@@ -179,6 +186,7 @@ public sealed class LoanService : ILoanService
 
         var payments = await _uow.Loans.GetPaymentsAsync(id, ct);
         var payment = payments.Single(p => p.Id == paymentId);
+        await _cache.InvalidateAsync("LoanPaid", ct, CacheKeys.Loan(id));   // синхронно з записом
         _logger.LogInformation("Loan {LoanId} paid: payment {PaymentId}, amount {Amount}, method {Method}",
             id, paymentId, payment.Amount, payment.Method);
         return _mapper.Map<PaymentDto>(payment);
@@ -187,6 +195,7 @@ public sealed class LoanService : ILoanService
     public async Task IssueAsync(long id, string? user, CancellationToken ct)
     {
         await _uow.Loans.ChangeStatusAsync(id, LoanStatus.Issued, user, ct);   // Paid -> Issued, інакше 409
+        await _cache.InvalidateAsync("LoanIssued", ct, CacheKeys.Loan(id));   // синхронно з записом
         _logger.LogInformation("Loan {LoanId} issued, status {Status}", id, LoanStatus.Issued);
     }
 
@@ -203,6 +212,7 @@ public sealed class LoanService : ILoanService
                 await _uow.Books.ReturnCopiesAsync(item.BookId, item.Quantity, ct);
 
             await _uow.CommitAsync(ct);
+            await _cache.InvalidateAsync("LoanReturned", ct, CacheKeys.Loan(id));   // синхронно з записом
             _logger.LogInformation("Loan {LoanId} returned, {ItemsCount} items back on shelf", id, loan.Items.Count);
         }
         catch
@@ -227,6 +237,7 @@ public sealed class LoanService : ILoanService
                     await _uow.Books.ReturnCopiesAsync(item.BookId, item.Quantity, ct);
 
             await _uow.CommitAsync(ct);
+            await _cache.InvalidateAsync("LoanCancelled", ct, CacheKeys.Loan(id));   // синхронно з записом
             _logger.LogInformation("Loan {LoanId} cancelled (from {PreviousStatus})", id, loan.Status);
         }
         catch
@@ -243,6 +254,7 @@ public sealed class LoanService : ILoanService
             throw new BusinessConflictException($"Only cancelled or returned loans can be deleted (current status {loan.Status})");
 
         await _uow.Loans.DeleteAsync(id, ct);                 // м'яке видалення
+        await _cache.InvalidateAsync("LoanDeleted", ct, CacheKeys.Loan(id));   // синхронно з записом
         _logger.LogInformation("Loan {LoanId} soft-deleted", id);
     }
 

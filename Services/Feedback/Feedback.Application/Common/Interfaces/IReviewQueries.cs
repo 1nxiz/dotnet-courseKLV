@@ -12,6 +12,9 @@ public interface IReviewQueries
 
     Task<PagedResult<ReviewDto>> GetListAsync(long? bookId, string? authorUserId, int? minRating, string? search,
         int page, int pageSize, CancellationToken ct);
+
+    /// <summary>Кількість, середня оцінка ($group) і останні latest відгуків книги.</summary>
+    Task<BookReviewsSummaryDto> GetBookSummaryAsync(long bookId, int latest, CancellationToken ct);
 }
 
 public interface IDiscussionQueries

@@ -116,7 +116,8 @@ public static class Extensions
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.Services.AddHealthChecks()
-            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);   // liveness без зовнішніх залежностей
+            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"])    // liveness без зовнішніх залежностей
+            .AddCheck<MemoryCacheHealthCheck>("memory-cache", tags: ["ready"]);  // статистика L1-кешу (Лаб. 06)
         return builder;
     }
 
@@ -138,6 +139,10 @@ public static class Extensions
 /// <summary>Імена Meter-ів і ActivitySource-ів платформи, які збирає OpenTelemetry.</summary>
 public static class PlatformTelemetry
 {
-    public static readonly string[] Meters = ["Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator", "Platform.ApiGateway"];
+    public static readonly string[] Meters =
+    [
+        "Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator", "Platform.ApiGateway",
+        "Loans.Cache", "Books.Cache", "Feedback.Cache", "Platform.Aggregator.Cache"      // cache.hits / cache.misses (Лаб. 06)
+    ];
     public static readonly string[] ActivitySources = ["Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator"];
 }

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+// Контракт каталогу книг для внутрішніх сервісів (Aggregator).
+// Номери полів незмінні після публікації: саме вони, а не імена, визначають бінарний формат.
+option csharp_namespace = "Library.Books.Grpc";
+
+package library.books.v1;
+
+import "google/protobuf/wrappers.proto";
+
+// Читання каталогу. Обидва методи йдуть через той самий IBookService, що й REST, тож кеш L1/L2 спільний.
+service BooksCatalog {
+  // Картка книги за id. NOT_FOUND — книги немає, INVALID_ARGUMENT — id <= 0.
+  rpc GetBook (GetBookRequest) returns (BookReply);
+  // Пакетне читання (до 100 id). Відсутні id повертаються в not_found_ids, а не помилкою.
+  rpc GetBooksByIds (GetBooksByIdsRequest) returns (BooksReply);
+}
+
+message GetBookRequest {
+  int32 id = 1;
+}
+
+message GetBooksByIdsRequest {
+  repeated int32 ids = 1;
+}
+
+// Грошова сума без втрати точності: units — ціла частина, nanos — дробова * 10^9 (як google.type.Money).
+message DecimalValue {
+  int64 units = 1;
+  sfixed32 nanos = 2;
+}
+
+message BookReply {
+  int32 id = 1;
+  string title = 2;
+  string isbn = 3;
+  DecimalValue price = 4;
+  int32 total_copies = 5;
+  bool is_published = 6;
+  int32 author_id = 7;
+  google.protobuf.StringValue author_name = 8;   // nullable
+  google.protobuf.Int32Value published_year = 9; // nullable
+  repeated string genres = 10;
+}
+
+message BooksReply {
+  repeated BookReply books = 1;
+  repeated int32 not_found_ids = 2;
+}

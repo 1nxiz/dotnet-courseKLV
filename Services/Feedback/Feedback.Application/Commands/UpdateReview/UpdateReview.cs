@@ -1,3 +1,4 @@
+using Feedback.Application.Caching;
 using AutoMapper;
 using Feedback.Application.Common.Exceptions;
 using Feedback.Application.Common.Messaging;
@@ -34,11 +35,13 @@ public sealed class UpdateReviewCommandHandler : IRequestHandler<UpdateReviewCom
 {
     private readonly IReviewRepository _reviews;
     private readonly IMapper _mapper;
+    private readonly IFeedbackCache _cache;
 
-    public UpdateReviewCommandHandler(IReviewRepository reviews, IMapper mapper)
+    public UpdateReviewCommandHandler(IReviewRepository reviews, IMapper mapper, IFeedbackCache cache)
     {
         _reviews = reviews;
         _mapper = mapper;
+        _cache = cache;
     }
 
     public async Task<ReviewDetailsDto> Handle(UpdateReviewCommand cmd, CancellationToken ct)
@@ -50,6 +53,7 @@ public sealed class UpdateReviewCommandHandler : IRequestHandler<UpdateReviewCom
         var progress = cmd.PagesRead is null ? null : new ReadingProgress(cmd.PagesRead.Value, cmd.Finished ?? false);
         review.Edit(new Rating(cmd.Rating), cmd.Text, progress);
         await _reviews.UpdateAsync(review, ct);             // фільтр за Version: паралельна зміна -> ConflictException
+        await _cache.InvalidateAsync("ReviewUpdated", ct, CacheKeys.Review(cmd.Id), CacheKeys.BookSummary(review.BookId));
         return _mapper.Map<ReviewDetailsDto>(review);
     }
 }

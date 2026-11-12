@@ -17,7 +17,7 @@ public class PipelineTests
     {
         var repository = new Mock<IReviewRepository>();
         var services = new ServiceCollection()
-            .AddLogging()
+            .AddLogging().AddMemoryCache(o => o.SizeLimit = 100).AddDistributedMemoryCache().AddMetrics()
             .AddSingleton(repository.Object);
         services.AddApplication(new ConfigurationBuilder().Build());
         await using var provider = services.BuildServiceProvider();
@@ -35,7 +35,7 @@ public class PipelineTests
     {
         var repository = new Mock<IReviewRepository>();
         repository.Setup(r => r.ExistsAsync(4, "u-olena", It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        var services = new ServiceCollection().AddLogging().AddSingleton(repository.Object);
+        var services = new ServiceCollection().AddLogging().AddMemoryCache(o => o.SizeLimit = 100).AddDistributedMemoryCache().AddMetrics().AddSingleton(repository.Object);
         services.AddApplication(new ConfigurationBuilder().Build());
         await using var provider = services.BuildServiceProvider();
 
@@ -47,7 +47,7 @@ public class PipelineTests
     [Fact]
     public void AutoMapper_configuration_is_valid()
     {
-        var services = new ServiceCollection().AddLogging();
+        var services = new ServiceCollection().AddLogging().AddMemoryCache(o => o.SizeLimit = 100).AddDistributedMemoryCache().AddMetrics();
         services.AddApplication(new ConfigurationBuilder().Build());
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<AutoMapper.IMapper>().ConfigurationProvider.AssertConfigurationIsValid();

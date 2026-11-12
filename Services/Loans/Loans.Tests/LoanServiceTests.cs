@@ -1,4 +1,5 @@
 using AutoMapper;
+using Loans.Bll.Caching;
 using Loans.Bll.Dtos;
 using Loans.Bll.Mapping;
 using Loans.Bll.Services;
@@ -6,7 +7,12 @@ using Loans.Dal.Abstractions;
 using Loans.Domain.Constants;
 using Loans.Domain.Exceptions;
 using Loans.Domain.Models;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Diagnostics.Metrics;
 using Moq;
 using System.Data;
 
@@ -27,7 +33,58 @@ public class LoanServiceTests
         _uow.SetupGet(u => u.Books).Returns(_books.Object);
         _uow.SetupGet(u => u.Readers).Returns(_readers.Object);
         var mapper = new MapperConfiguration(cfg => cfg.AddMaps(typeof(LoanProfile).Assembly), NullLoggerFactory.Instance).CreateMapper();
-        _service = new LoanService(_uow.Object, mapper, NullLogger<LoanService>.Instance);
+        _service = new LoanService(_uow.Object, mapper, CreateCache(), NullLogger<LoanService>.Instance);
+    }
+
+    /// <summary>Справжній дворівневий кеш: L1 MemoryCache + L2 MemoryDistributedCache (замість Redis).</summary>
+    private static TwoLevelCache CreateCache()
+    {
+        var meters = new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<IMeterFactory>();
+        return new TwoLevelCache(
+            new MemoryCache(new MemoryCacheOptions { SizeLimit = 100 }),
+            new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions())),
+            new CacheMetrics(meters),
+            NullLogger<TwoLevelCache>.Instance);
+    }
+
+    private void SetupLoanCard(long id, string status)
+        => _loans.Setup(l => l.GetCardAsync(id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(() => new Loan { Id = id, Number = "LN-T", ReaderId = 1, Status = status, LoanDate = DateTime.UtcNow });
+
+    [Fact]
+    public async Task Second_read_of_loan_card_is_served_from_cache()
+    {
+        SetupLoanCard(7, LoanStatus.Paid);
+
+        var first = await _service.GetByIdAsync(7, CancellationToken.None);
+        var second = await _service.GetByIdAsync(7, CancellationToken.None);
+
+        Assert.Equal(first.Number, second.Number);
+        _loans.Verify(l => l.GetCardAsync(7, It.IsAny<CancellationToken>()), Times.Once);   // БД — лише перший раз
+    }
+
+    [Fact]
+    public async Task Write_invalidates_cache_so_next_read_returns_new_state()
+    {
+        SetupLoanCard(8, LoanStatus.Paid);
+        Assert.Equal(LoanStatus.Paid, (await _service.GetByIdAsync(8, CancellationToken.None)).Status);
+
+        SetupLoanCard(8, LoanStatus.Issued);                                  // стан у БД змінився
+        await _service.IssueAsync(8, "test", CancellationToken.None);          // запис -> інвалідація
+
+        Assert.Equal(LoanStatus.Issued, (await _service.GetByIdAsync(8, CancellationToken.None)).Status);
+        _loans.Verify(l => l.GetCardAsync(8, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Not_found_is_not_cached()
+    {
+        _loans.Setup(l => l.GetCardAsync(9, It.IsAny<CancellationToken>())).ReturnsAsync((Loan?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.GetByIdAsync(9, CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.GetByIdAsync(9, CancellationToken.None));
+
+        _loans.Verify(l => l.GetCardAsync(9, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Books.Api.ErrorHandling;
+using Books.Api.Grpc;
 using Books.Bll;
 using Books.Dal;
 using Books.Dal.Seeding;
@@ -15,6 +16,29 @@ var connectionString = builder.Configuration.GetConnectionString("BooksDb")
 
 builder.Services.AddBooksDal(connectionString);
 builder.Services.AddBooksBll(builder.Configuration["AutoMapper:LicenseKey"]);
+
+// ---------- Кешування (Лаб. 06) ----------
+// L1: кеш у пам'яті процесу з обмеженням розміру (кожен запис має Size = 1) і статистикою для health check
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = builder.Configuration.GetValue("Caching:MemorySizeLimit", 10_000);
+    options.CompactionPercentage = 0.25;                 // при переповненні витіснити 25 % (спершу Low-пріоритет)
+    options.TrackStatistics = true;
+});
+// L2: IDistributedCache поверх Redis через Aspire-інтеграцію (рядок ConnectionStrings:redis передає AppHost;
+// вона ж додає health check, повторні з'єднання й трасування Redis). Без Redis — розподілений кеш у пам'яті.
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
+    builder.AddRedisDistributedCache("redis");
+else
+    builder.Services.AddDistributedMemoryCache();
+
+// ---------- gRPC (Лаб. 06): окремий HTTP/2-endpoint "grpc" (Kestrel:Endpoints у appsettings.json) ----------
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<GrpcLoggingInterceptor>();  // ServiceDefaults: метод, peer, статус, тривалість
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+builder.Services.AddGrpcReflection();                    // опис сервісів для grpcurl / Postman
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -54,6 +78,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapGrpcService<BooksGrpcService>();
+if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();
 

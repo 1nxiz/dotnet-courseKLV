@@ -279,3 +279,65 @@ curl -i -H "X-Correlation-Id: demo-123" http://localhost:5000/api/aggregator/loa
 **Traces** (траса Gateway → Aggregator → три сервіси → SQL/MongoDB), **Metrics**.
 Перевірка часткової відмови: у Dashboard зупинити `feedback-api` (Stop) і повторити запит до агрегатора — у відповіді
 з'явиться `"warnings": ["feedback-api is unavailable"]`.
+
+## Лаб. 06 — кешування L1/L2 (IMemoryCache + Redis) і gRPC
+
+### Кешування
+Кожен сервіс має `Caching/` у своєму BLL / Application-шарі: `TwoLevelCache` (cache-aside L1 → L2 → БД, рівні
+заповнюються на зворотному шляху), `CacheKeys` (передбачувані ключі з префіксом сервісу), `CachePolicy` (TTL за типом
+даних, L1 завжди коротший за L2), `CacheMetrics` (Meter `<Сервіс>.Cache`: `cache.hits` / `cache.misses` з тегом
+`cache.level` = memory | redis, `cache.invalidations`, `cache.errors`, `cache.operation.duration`).
+
+| Сервіс | Що кешується | Ключ | L1 (sliding / absolute) | L2 Redis | Інвалідація |
+|---|---|---|---|---|---|
+| Books | картка книги | `books:book:{id}` | 2 хв / 5 хв | 30 хв | зміна назви, ціни, примірників, публікація, видалення |
+| Books | довідники жанрів, авторів | `books:genres:all`, `books:authors:all` | 10 хв | 1 год | новий автор; прогрівання під час старту (`CacheWarmupService`) |
+| Books | опубліковані книги автора | `books:author:{id}:published` | 30 с / 1 хв | 5 хв | будь-яка зміна книги цього автора |
+| Loans | картка видачі | `loans:loan:{id}` | 10 с / 15 с | 2 хв | кожна зміна статусу, деталей, оплата, видалення |
+| Loans | картка читача (персональні дані) | `loans:reader:{id}` | 30 с / 1 хв | 5 хв | оновлення, видалення |
+| Feedback | відгук | `feedback:review:{id}` | 1 хв / 2 хв | 10 хв | редагування, коментар, видалення |
+| Feedback | підсумок відгуків книги | `feedback:book:{id}:summary` | 30 с / 1 хв | 5 хв | новий / змінений / видалений відгук, коментар |
+| Aggregator | повна картка видачі | `aggregator:loan:{id}:full` | — | 30 с | TTL (коротший за кеші сервісів); часткові відповіді не кешуються |
+
+* L1: `AddMemoryCache` з `SizeLimit` (кожен запис `Size = 1`), `CompactionPercentage = 0.25`, пріоритети витіснення,
+  `TrackStatistics` → статистика (записи, hit ratio) у health check `memory-cache`.
+* L2: `builder.AddRedisDistributedCache("redis")` (Aspire-інтеграція: health check, повторні з'єднання, трасування Redis).
+* Інвалідація — синхронно, одразу після запису в БД. У Feedback кешування — `CachingBehavior` MediatR для запитів
+  з `ICachedQuery`, команди інвалідують ключі в обробниках.
+* Redis недоступний → помилка логуються, L2 пропускається 30 с, сервіс відповідає з БД (повільніше, але працює).
+
+### gRPC
+| Сервіс | Контракт | gRPC-сервіс | Методи |
+|---|---|---|---|
+| Loans.Api | `Protos/loans.proto` | `Grpc/LoansGrpcService.cs` | `GetLoan`, `GetReader` |
+| Books.Api | `Protos/books.proto` | `Grpc/BooksGrpcService.cs` | `GetBook`, `GetBooksByIds` |
+| Feedback.WebApi | `Protos/feedback.proto` | `Grpc/FeedbackGrpcService.cs` | `GetBooksReviews`, `GetReview` |
+
+* gRPC-сервіси — адаптери над тими самими BLL-сервісами / MediatR, що й REST (кеш спільний); доменні винятки →
+  `RpcException` (`NotFound`, `InvalidArgument`, `FailedPrecondition`). Гроші — `DecimalValue {units, nanos}`, дати — `Timestamp`.
+* Kestrel: endpoint `http` (REST, HTTP/1.1) і окремий `grpc` лише HTTP/2 (gRPC без TLS) — `Kestrel:Endpoints` у
+  appsettings.json; Aspire бере ці endpoint-и й підставляє адреси.
+* `GrpcLoggingInterceptor` (ServiceDefaults) логує метод, peer, статус, тривалість; reflection — для grpcurl / Postman.
+* Aggregator: `AddGrpcClient` з адресами `http://_grpc.loans-api` тощо (service discovery іменованого endpoint-а),
+  `GrpcClientLoggingInterceptor`, deadline 5 с, retry-політика gRPC `ServiceConfig` (повтор лише `UNAVAILABLE`).
+  Книги й відгуки — ОДИН пакетний gRPC-виклик на сервіс, паралельно (`Task.WhenAll`); `RpcException` → попередження.
+* CorrelationId: gRPC-канал працює поверх HttpClient, тому `CorrelationIdHandler` ServiceDefaults додає `x-correlation-id`
+  у метадані без окремого коду; на сервері його читає `CorrelationIdMiddleware`.
+
+### Порівняння HTTP і gRPC
+```bash
+curl "http://localhost:5000/api/aggregator/loans/1/full?transport=grpc&cache=false"
+curl "http://localhost:5000/api/aggregator/loans/1/full?transport=http&cache=false"   # REST-клієнти Лаб. 05
+```
+Тривалість обох шляхів пише гістограма `aggregator.request.duration` (тег `transport`) — у Dashboard → Metrics, а також
+поле `ElapsedMs` у лозі `Loan card ... aggregated via ...`. gRPC швидший, бо: один пакетний виклик замість N запитів
+на книги/відгуки, бінарна серіалізація Protobuf і мультиплексування викликів через одне HTTP/2-з'єднання.
+
+### Перевірка
+```bash
+curl http://localhost:5000/api/books/3      # 1-й раз — SQL-span у трасі, 2-й — лише "Cache hit memory"
+curl -X PUT http://localhost:5000/api/books/3/price -H "Content-Type: application/json" -d "{\"price\":350}"
+curl http://localhost:5000/api/books/3      # нова ціна (кеш інвалідовано)
+grpcurl -plaintext localhost:5112 list      # порти grpc: loans 5111, books 5112, feedback 5113 (поза Aspire)
+grpcurl -plaintext -d "{\"id\":999}" localhost:5112 library.books.v1.BooksCatalog/GetBook   # NotFound
+```

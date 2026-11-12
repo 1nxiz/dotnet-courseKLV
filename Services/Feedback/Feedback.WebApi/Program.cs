@@ -2,6 +2,7 @@ using System.Reflection;
 using Feedback.Application;
 using Feedback.Infrastructure;
 using Feedback.WebApi.ErrorHandling;
+using Feedback.WebApi.Grpc;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,26 @@ builder.AddServiceDefaults();
 builder.Services
     .AddApplication(builder.Configuration)          // MediatR + behaviors, валідатори, AutoMapper
     .AddInfrastructure(builder.Configuration);      // MongoDB, BSON-мапінг, репозиторії, індекси, сідінг
+
+// Кешування (Лаб. 06): L1 — пам'ять з обмеженням розміру, L2 — Redis через Aspire-інтеграцію (CachingBehavior)
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = builder.Configuration.GetValue("Caching:MemorySizeLimit", 5_000);
+    options.CompactionPercentage = 0.25;
+    options.TrackStatistics = true;
+});
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
+    builder.AddRedisDistributedCache("redis");
+else
+    builder.Services.AddDistributedMemoryCache();
+
+// gRPC (Лаб. 06): endpoint "grpc" лише HTTP/2 (Kestrel:Endpoints у appsettings.json)
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<GrpcLoggingInterceptor>();
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+builder.Services.AddGrpcReflection();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -41,6 +62,8 @@ if (!app.Environment.IsProduction())
 }
 
 app.MapControllers();
+app.MapGrpcService<FeedbackGrpcService>();
+if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();
 

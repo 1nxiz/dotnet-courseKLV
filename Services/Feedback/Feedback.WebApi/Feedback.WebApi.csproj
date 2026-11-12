@@ -6,6 +6,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
+    <PackageReference Include="Grpc.AspNetCore.Server.Reflection" Version="2.67.0" />
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="9.5.2" />
+  </ItemGroup>
+  <!-- gRPC-контракт (Лаб. 06): серверна частина тут, клієнтська — у Platform.Aggregator -->
+  <ItemGroup>
+    <Protobuf Include="Protos\feedback.proto" GrpcServices="Server" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />

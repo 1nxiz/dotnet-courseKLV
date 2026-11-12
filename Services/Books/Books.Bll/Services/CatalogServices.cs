@@ -1,4 +1,5 @@
 using AutoMapper;
+using Books.Bll.Caching;
 using Books.Bll.Dtos;
 using Books.Dal.Repositories;
 using Books.Domain.Entities;
@@ -11,15 +12,19 @@ public class GenreService : IGenreService
 {
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly IBooksCache _cache;
 
-    public GenreService(IUnitOfWork uow, IMapper mapper)
+    public GenreService(IUnitOfWork uow, IMapper mapper, IBooksCache cache)
     {
         _uow = uow;
         _mapper = mapper;
+        _cache = cache;
     }
 
-    public async Task<IReadOnlyList<GenreDto>> GetAllAsync(CancellationToken ct)
-        => _mapper.Map<List<GenreDto>>(await _uow.Genres.GetAllAsync(ct));
+    /// <summary>Довідник жанрів (задається міграцією) — absolute expiration, прогрівається під час старту.</summary>
+    public Task<IReadOnlyList<GenreDto>> GetAllAsync(CancellationToken ct)
+        => _cache.GetOrCreateAsync<IReadOnlyList<GenreDto>>(CacheKeys.Genres,
+            async token => _mapper.Map<List<GenreDto>>(await _uow.Genres.GetAllAsync(token)), CachePolicy.Reference, ct);
 
     public async Task<GenreWithBooksDto> GetWithBooksAsync(int id, CancellationToken ct)
     {
@@ -43,17 +48,20 @@ public class AuthorService : IAuthorService
 {
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly IBooksCache _cache;
     private readonly ILogger<AuthorService> _logger;
 
-    public AuthorService(IUnitOfWork uow, IMapper mapper, ILogger<AuthorService> logger)
+    public AuthorService(IUnitOfWork uow, IMapper mapper, IBooksCache cache, ILogger<AuthorService> logger)
     {
         _uow = uow;
         _mapper = mapper;
+        _cache = cache;
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<AuthorDto>> GetAllAsync(CancellationToken ct)
-        => _mapper.Map<List<AuthorDto>>(await _uow.Authors.GetAllAsync(ct));
+    public Task<IReadOnlyList<AuthorDto>> GetAllAsync(CancellationToken ct)
+        => _cache.GetOrCreateAsync<IReadOnlyList<AuthorDto>>(CacheKeys.Authors,
+            async token => _mapper.Map<List<AuthorDto>>(await _uow.Authors.GetAllAsync(token)), CachePolicy.Reference, ct);
 
     public async Task<AuthorDto> GetByIdAsync(int id, CancellationToken ct)
         => _mapper.Map<AuthorDto>(await _uow.Authors.GetByIdAsync(id, ct)
@@ -64,6 +72,7 @@ public class AuthorService : IAuthorService
         var author = new Author(input.FullName, input.Country, input.BirthYear);
         await _uow.Authors.AddAsync(author, ct);
         await _uow.SaveChangesAsync(ct);
+        await _cache.InvalidateAsync("AuthorCreated", ct, CacheKeys.Authors);
         _logger.LogInformation("Author {AuthorId} created: {FullName}", author.Id, author.FullName);
         return _mapper.Map<AuthorDto>(author);
     }

@@ -1,4 +1,5 @@
 using AutoMapper;
+using Loans.Bll.Caching;
 using Loans.Bll.Dtos;
 using Loans.Dal.Abstractions;
 using Loans.Domain.Exceptions;
@@ -11,23 +12,26 @@ public sealed class ReaderService : IReaderService
 {
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
+    private readonly ILoansCache _cache;
     private readonly ILogger<ReaderService> _logger;
 
-    public ReaderService(IUnitOfWork uow, IMapper mapper, ILogger<ReaderService> logger)
+    public ReaderService(IUnitOfWork uow, IMapper mapper, ILoansCache cache, ILogger<ReaderService> logger)
     {
         _uow = uow;
         _mapper = mapper;
+        _cache = cache;
         _logger = logger;
     }
 
     public async Task<IReadOnlyList<ReaderDto>> GetAllAsync(CancellationToken ct)
         => _mapper.Map<List<ReaderDto>>(await _uow.Readers.GetAllAsync(ct));
 
-    public async Task<ReaderDto> GetByIdAsync(long id, CancellationToken ct)
-    {
-        var reader = await _uow.Readers.GetByIdAsync(id, ct) ?? throw new NotFoundException($"Reader {id} not found");
-        return _mapper.Map<ReaderDto>(reader);
-    }
+    public Task<ReaderDto> GetByIdAsync(long id, CancellationToken ct)
+        => _cache.GetOrCreateAsync(CacheKeys.Reader(id), async token =>
+        {
+            var reader = await _uow.Readers.GetByIdAsync(id, token) ?? throw new NotFoundException($"Reader {id} not found");
+            return _mapper.Map<ReaderDto>(reader);
+        }, CachePolicy.Reader, ct);
 
     public async Task<ReaderDto> CreateAsync(CreateReaderDto input, string? user, CancellationToken ct)
     {
@@ -67,6 +71,7 @@ public sealed class ReaderService : IReaderService
             UpdatedBy = user,
             RowVersion = rowVersion
         }, ct);                                               // чужа зміна -> ConcurrencyException -> 409
+        await _cache.InvalidateAsync("ReaderUpdated", ct, CacheKeys.Reader(id));
         _logger.LogInformation("Reader {ReaderId} updated", id);
         return await GetByIdAsync(id, ct);
     }
@@ -75,6 +80,7 @@ public sealed class ReaderService : IReaderService
     {
         if (!await _uow.Readers.DeleteAsync(id, ct))
             throw new NotFoundException($"Reader {id} not found");
+        await _cache.InvalidateAsync("ReaderDeleted", ct, CacheKeys.Reader(id));
         _logger.LogInformation("Reader {ReaderId} soft-deleted", id);
     }
 }

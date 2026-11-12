@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- .NET Aspire AppHost платформи (AppHost.cs): SQL Server + MongoDB, три мікросервіси, Aggregator і API Gateway однією командою. -->
+  <!-- .NET Aspire AppHost платформи (AppHost.cs): SQL Server + MongoDB + Redis, три мікросервіси, Aggregator і API Gateway однією командою. -->
   <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.2" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,6 +10,7 @@
     <PackageReference Include="Aspire.Hosting.AppHost" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.MongoDB" Version="9.5.2" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.5.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Services\Loans\Loans.Api\Loans.Api.csproj" />

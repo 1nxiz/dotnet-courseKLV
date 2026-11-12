@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+// Контракт сервісу видач для внутрішніх клієнтів (Aggregator).
+// Номери полів незмінні після публікації — від них залежить сумісність зі старими клієнтами.
+option csharp_namespace = "Library.Loans.Grpc";
+
+package library.loans.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service LoansService {
+  // Картка видачі з позиціями. NOT_FOUND — видачі немає, INVALID_ARGUMENT — id <= 0.
+  rpc GetLoan (GetLoanRequest) returns (LoanReply);
+  // Картка читача (без персональних контактів — лише те, що потрібно агрегатору).
+  rpc GetReader (GetReaderRequest) returns (ReaderReply);
+}
+
+message GetLoanRequest {
+  int64 id = 1;
+}
+
+message GetReaderRequest {
+  int64 id = 1;
+}
+
+// Грошова сума без втрати точності: units — ціла частина, nanos — дробова * 10^9.
+message DecimalValue {
+  int64 units = 1;
+  sfixed32 nanos = 2;
+}
+
+message LoanItemReply {
+  int64 book_id = 1;
+  string book_title = 2;        // знімок назви на момент видачі
+  DecimalValue unit_price = 3;  // знімок ціни на момент видачі
+  DecimalValue discount = 4;
+  int32 quantity = 5;
+}
+
+message LoanReply {
+  int64 id = 1;
+  string number = 2;
+  int64 reader_id = 3;
+  string status = 4;
+  google.protobuf.Timestamp loan_date = 5;
+  google.protobuf.Timestamp due_date = 6;   // відсутнє поле = термін не задано
+  DecimalValue total = 7;
+  repeated LoanItemReply items = 8;
+}
+
+message ReaderReply {
+  int64 id = 1;
+  string full_name = 2;
+  string card_number = 3;
+}

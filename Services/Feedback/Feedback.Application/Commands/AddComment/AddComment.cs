@@ -1,3 +1,4 @@
+using Feedback.Application.Caching;
 using AutoMapper;
 using Feedback.Application.Common.Exceptions;
 using Feedback.Application.Common.Messaging;
@@ -30,11 +31,13 @@ public sealed class AddCommentCommandHandler : IRequestHandler<AddCommentCommand
 {
     private readonly IReviewRepository _reviews;
     private readonly IMapper _mapper;
+    private readonly IFeedbackCache _cache;
 
-    public AddCommentCommandHandler(IReviewRepository reviews, IMapper mapper)
+    public AddCommentCommandHandler(IReviewRepository reviews, IMapper mapper, IFeedbackCache cache)
     {
         _reviews = reviews;
         _mapper = mapper;
+        _cache = cache;
     }
 
     public async Task<CommentDto> Handle(AddCommentCommand cmd, CancellationToken ct)
@@ -42,6 +45,7 @@ public sealed class AddCommentCommandHandler : IRequestHandler<AddCommentCommand
         var review = await _reviews.GetByIdAsync(ObjectId.Parse(cmd.ReviewId), ct) ?? throw new NotFoundException("Review", cmd.ReviewId);
         var comment = review.AddComment(new Author(cmd.AuthorId, cmd.AuthorName), cmd.Text);
         await _reviews.UpdateAsync(review, ct);
+        await _cache.InvalidateAsync("CommentAdded", ct, CacheKeys.Review(cmd.ReviewId), CacheKeys.BookSummary(review.BookId));
         return _mapper.Map<CommentDto>(comment);
     }
 }

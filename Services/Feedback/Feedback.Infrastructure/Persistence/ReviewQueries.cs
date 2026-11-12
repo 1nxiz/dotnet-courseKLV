@@ -73,6 +73,27 @@ public sealed class ReviewQueries : IReviewQueries
 
         return new PagedResult<ReviewDto>(items, total, page, pageSize);
     }
+
+    /// <summary>Кількість і середня оцінка — $group у БД; останні відгуки — та сама проєкція, що й у списку.</summary>
+    public async Task<BookReviewsSummaryDto> GetBookSummaryAsync(long bookId, int latest, CancellationToken ct)
+    {
+        var collection = _context.Database.GetCollection<BsonDocument>(MongoDbContext.ReviewsCollection);
+        var stats = await collection.Aggregate()
+            .Match(new BsonDocument("bookId", bookId))
+            .Group(new BsonDocument
+            {
+                { "_id", BsonNull.Value },
+                { "count", new BsonDocument("$sum", 1) },
+                { "avg", new BsonDocument("$avg", "$rating") }
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var latestPage = await GetListAsync(bookId, null, null, null, 1, latest, ct);
+        return new BookReviewsSummaryDto(bookId,
+            stats is null ? 0 : stats["count"].ToInt64(),
+            stats is null ? 0 : Math.Round(stats["avg"].ToDouble(), 2),
+            latestPage.Items);
+    }
 }
 
 public sealed class DiscussionQueries : IDiscussionQueries

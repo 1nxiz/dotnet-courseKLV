@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- BLL: сервіси (бізнес-логіка), інтерфейси сервісів, DTO, профілі AutoMapper. -->
+  <!-- BLL: сервіси (бізнес-логіка), інтерфейси сервісів, DTO, профілі AutoMapper, Caching/ (L1 + L2). -->
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="15.1.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
   </ItemGroup>
   <ItemGroup>

@@ -33,3 +33,6 @@ public record DiscussionDto(string Id, long BookId, string BookTitle, string Tit
     IReadOnlyList<string> Tags, int MessagesCount, IReadOnlyList<MessagePreviewDto> LastMessages, DateTime LastActivityAt);
 
 public record DiscussionWithMessagesDto(DiscussionDto Discussion, CursorPage<MessageDto> Messages);
+
+/// <summary>Підсумок відгуків книги (для Aggregator через gRPC).</summary>
+public record BookReviewsSummaryDto(long BookId, long ReviewsCount, double AverageRating, IReadOnlyList<ReviewDto> Latest);
