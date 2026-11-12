@@ -1,5 +1,16 @@
 # SQL Server для books-api у кластері (залежність каталогу). Пароль SA — із Secret sql-secrets (kubectl create secret ...).
-# Навчальний варіант: emptyDir — дані живуть, доки живе под; у production — StatefulSet + PersistentVolumeClaim.
+# Дані — у PersistentVolumeClaim: під час демонстрації readiness базу зупиняють (scale --replicas=0) і запускають знову,
+# і BooksDb має пережити перезапуск пода (з emptyDir новий под отримав би порожній диск).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sql-data
+  namespace: library
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 2Gi }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -8,6 +19,7 @@ metadata:
   labels: { app: sql }
 spec:
   replicas: 1
+  strategy: { type: Recreate }        # RWO-том: старий под звільняє диск до старту нового
   selector:
     matchLabels: { app: sql }
   template:
@@ -35,9 +47,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/opt/mssql
+      securityContext:
+        fsGroup: 10001                  # користувач mssql у образі — має право писати на том
       volumes:
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim: { claimName: sql-data }
 ---
 apiVersion: v1
 kind: Service

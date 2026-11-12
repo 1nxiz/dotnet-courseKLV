@@ -61,6 +61,7 @@ var loansApi = WithIdentity(builder.AddProject<Projects.Loans_Api>("loans-api")
                       .WaitFor(sql)
                       .WithReference(redis).WaitFor(redis)
                       .WithReference(rabbit).WaitFor(rabbit)                    // споживає book.*, публікує loan.status_changed
+                      .WithEnvironment("Database__InitializeOnStartup", "true") // Лаб. 10: і в кластері (Production) LoansDb створюється скриптами Лаб. 01
                       .WithHttpHealthCheck("/health"));
 
 var booksApi = WithIdentity(builder.AddProject<Projects.Books_Api>("books-api")
@@ -68,6 +69,7 @@ var booksApi = WithIdentity(builder.AddProject<Projects.Books_Api>("books-api")
                       .WaitFor(sql)
                       .WithReference(redis).WaitFor(redis)
                       .WithReference(rabbit).WaitFor(rabbit)                    // публікує book.*, споживає loan.status_changed
+                      .WithEnvironment("Database__Seed", "true")                // Лаб. 10: демо-каталог і в кластері (Production)
                       .WithHttpHealthCheck("/health"));
 
 var feedbackApi = WithIdentity(builder.AddProject<Projects.Feedback_WebApi>("feedback-api")
@@ -102,5 +104,13 @@ WithIdentity(builder.AddProject<Projects.Platform_ApiGateway>("gateway")
        .WithEndpoint("http", e => e.Port = 5000)          // фіксований публічний порт Gateway
        .WithExternalHttpEndpoints()
        .WithHttpHealthCheck("/health"));
+
+// Лаб. 10 (aspirate): у режимі публікації маніфесту Aspire додає кожному проєкту ще й https-endpoint, який у контейнері
+// не слухається (і для books-api/loans-api отримує той самий порт, що gRPC -> дубль порту в Kubernetes Service).
+// TLS у кластері завершується на Ingress, тож для маніфестів лишаємо тільки http і grpc.
+if (builder.ExecutionContext.IsPublishMode)
+    foreach (var project in builder.Resources.OfType<ProjectResource>())
+        foreach (var https in project.Annotations.OfType<EndpointAnnotation>().Where(e => e.UriScheme == "https").ToList())
+            project.Annotations.Remove(https);
 
 builder.Build().Run();
