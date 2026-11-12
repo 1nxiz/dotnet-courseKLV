@@ -1,0 +1,23 @@
+# Службовий workflow для розробки: виконує bash-скрипт на runner-і (перевірка версій пакетів, API бібліотек).
+name: probe
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "bash"
+        required: true
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Run
+        env:
+          SCRIPT: ${{ inputs.script }}
+        run: |
+          echo "$SCRIPT" > /tmp/probe.sh
+          bash /tmp/probe.sh
