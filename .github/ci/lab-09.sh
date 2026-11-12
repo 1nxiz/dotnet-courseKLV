@@ -104,7 +104,8 @@ echo "   token header: $(jwt_header "$CC")"
 jwt "$CC" | python3 -c "import json,sys;c=json.load(sys.stdin);print('   client credentials token:',{k:c.get(k) for k in ('iss','aud','client_id','scope','sub')});assert 'sub' not in c"
 expect 200 -H "Authorization: Bearer $CC" "http://localhost:5101/api/loans?page=1&pageSize=1"
 expect 403 -H "Authorization: Bearer $CC" -X DELETE http://localhost:5101/api/loans/999999
-expect 403 -H "Authorization: Bearer $CC" http://localhost:5105/api/payments
+expect 401 -H "Authorization: Bearer $CC" http://localhost:5105/api/payments
+echo "   token without payments-api audience is rejected by payments-api (aud check) -> 401"
 expect 400 -X POST $IS/connect/token -d grant_type=client_credentials -d client_id=aggregator_service -d client_secret=wrong
 echo ">> Aggregator -> services via gRPC with its own Client Credentials token"
 expect 200 -H "Authorization: Bearer $ADM" "$GW/api/aggregator/loans/1/full?cache=false"
