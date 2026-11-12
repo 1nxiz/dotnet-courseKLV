@@ -34,7 +34,9 @@ public static class PlatformAuthentication
     {
         var config = builder.Configuration;
         var issuers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // iss -> схема
-        var fallback = AuthServiceScheme;
+        // схема для запитів БЕЗ токена (health probes, swagger): має бути локальною — без мережевого запиту metadata/JWKS
+        // до Identity Provider-а, інакше сервіс під час старту закешував би ще порожній набір ключів IdentityServer
+        string? fallback = null;
 
         var auth = builder.Services.AddAuthentication(o =>
         {
@@ -65,6 +67,7 @@ public static class PlatformAuthentication
                 };
             });
             issuers[issuer] = AuthServiceScheme;
+            fallback = AuthServiceScheme;
         }
 
         // 2) Duende IdentityServer (OAuth 2.0 / OIDC)
@@ -82,9 +85,11 @@ public static class PlatformAuthentication
                 o.TokenValidationParameters.NameClaimType = "name";
                 o.TokenValidationParameters.RoleClaimType = "role";
                 if (!string.IsNullOrEmpty(issuerUri)) o.TokenValidationParameters.ValidIssuer = issuerUri;
+                o.RefreshOnIssuerKeyNotFound = true;          // ротація ключів IdentityServer -> перечитати JWKS
+                o.RefreshInterval = TimeSpan.FromSeconds(30);
             });
             issuers[issuerUri ?? authority.TrimEnd('/')] = IdentityServerScheme;
-            fallback = IdentityServerScheme;
+            fallback ??= IdentityServerScheme;
         }
 
         // 3) Keycloak (Aspire.Keycloak.Authentication): адреса — service discovery ресурсу "keycloak"
@@ -100,11 +105,13 @@ public static class PlatformAuthentication
                 o.MapInboundClaims = false;
                 o.TokenValidationParameters.ValidateAudience = validateAudience;
                 o.TokenValidationParameters.NameClaimType = "preferred_username";
+                o.RefreshOnIssuerKeyNotFound = true;
+                o.RefreshInterval = TimeSpan.FromSeconds(30);
             });
         }
 
         auth.AddPolicyScheme(Scheme, "JWT: Auth Service / IdentityServer / Keycloak", o =>
-            o.ForwardDefaultSelector = context => SelectScheme(context, issuers, keycloak, fallback));
+            o.ForwardDefaultSelector = context => SelectScheme(context, issuers, keycloak, fallback ?? (keycloak ? KeycloakScheme : AuthServiceScheme)));
         return builder;
     }
 
