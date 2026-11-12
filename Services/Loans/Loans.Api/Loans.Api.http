@@ -1,0 +1,48 @@
+### Loans API — приклади запитів (VS Code: розширення REST Client; Rider/VS — вбудовано)
+@host = http://localhost:5101
+
+### Список видач (пагінація + фільтр)
+GET {{host}}/api/loans?status=Submitted&page=1&pageSize=10
+
+### Картка видачі
+GET {{host}}/api/loans/1
+
+### Неіснуюча видача -> 404 ProblemDetails
+GET {{host}}/api/loans/999999
+
+### Новий читач з апострофом (параметризація)
+POST {{host}}/api/readers
+Content-Type: application/json
+
+{ "email": "liam.obrien@example.com", "fullName": "Liam O'Brien", "cardNumber": "LIB-0100" }
+
+### Оформити видачу
+POST {{host}}/api/loans
+Content-Type: application/json
+
+{ "readerId": 1, "items": [ { "bookId": 1, "quantity": 1 }, { "bookId": 7, "quantity": 1 } ], "deliveryType": "Pickup" }
+
+### Підтвердити (Reserved + резерв примірників) — повторний виклик дає 409
+POST {{host}}/api/loans/1/confirm
+
+### Замовити більше, ніж є на полиці (книга 8 має 0 примірників) -> confirm дає 409 і відкат статусу
+POST {{host}}/api/loans
+Content-Type: application/json
+
+{ "readerId": 2, "items": [ { "bookId": 8, "quantity": 1 } ] }
+
+### Оплатити (ідемпотентно)
+POST {{host}}/api/loans/2/pay
+Content-Type: application/json
+Idempotency-Key: pay-loan-2-attempt-1
+
+{ "amount": 55.00, "method": "Card" }
+
+### Видати неоплачену видачу -> 409 (процедура usp_ChangeLoanStatus, THROW 50002)
+POST {{host}}/api/loans/1/issue
+
+### Некоректні дані -> 400 ValidationProblemDetails
+POST {{host}}/api/loans
+Content-Type: application/json
+
+{ "readerId": 0, "items": [] }

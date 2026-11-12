@@ -1,0 +1,127 @@
+using Loans.Bll.Dtos;
+using Loans.Bll.Services;
+using Loans.Domain.Common;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Loans.Api.Controllers;
+
+/// <summary>
+/// Видачі книг. Тонкий адаптер HTTP -> BLL: без SQL і без бізнес-правил; помилки перетворює
+/// на статуси глобальний обробник (404 / 409 / 400 у форматі ProblemDetails).
+/// </summary>
+[ApiController]
+[Route("api/loans")]
+[Produces("application/json")]
+public class LoansController : ControllerBase
+{
+    private readonly ILoanService _loans;
+
+    public LoansController(ILoanService loans) => _loans = loans;
+
+    private string CurrentUser => User.Identity?.Name ?? "anonymous";
+
+    /// <summary>Список видач з фільтрами та пагінацією.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<LoanSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResult<LoanSummaryDto>>> GetList([FromQuery] LoanQuery query, CancellationToken ct)
+        => Ok(await _loans.GetPageAsync(query, ct));
+
+    /// <summary>Картка видачі з позиціями та деталями.</summary>
+    [HttpGet("{id:long}")]
+    [ProducesResponseType(typeof(LoanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoanDto>> GetById(long id, CancellationToken ct)
+        => Ok(await _loans.GetByIdAsync(id, ct));
+
+    /// <summary>Оформити видачу. Назва й ціна книг фіксуються в позиціях як знімок.</summary>
+    [HttpPost]
+    [ProducesResponseType(typeof(LoanDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<LoanDto>> Create(CreateLoanDto input, CancellationToken ct)
+    {
+        var created = await _loans.CreateAsync(input, CurrentUser, ct);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
+
+    /// <summary>Змінити деталі доставки (оптимістична конкурентність через RowVersion).</summary>
+    [HttpPut("{id:long}/details")]
+    [ProducesResponseType(typeof(RowVersionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<RowVersionDto>> UpdateDetails(long id, UpdateLoanDetailsDto input, CancellationToken ct)
+        => Ok(await _loans.UpdateDetailsAsync(id, input, CurrentUser, ct));
+
+    /// <summary>Підтвердити видачу: Reserved + резервування примірників в одній транзакції.</summary>
+    [HttpPost("{id:long}/confirm")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Confirm(long id, CancellationToken ct)
+    {
+        await _loans.ConfirmAsync(id, CurrentUser, ct);
+        return NoContent();
+    }
+
+    /// <summary>Оплатити видачу. Заголовок Idempotency-Key захищає від повторного списання.</summary>
+    [HttpPost("{id:long}/pay")]
+    [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PaymentDto>> Pay(long id, PayLoanDto input,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, CancellationToken ct)
+        => Ok(await _loans.PayAsync(id, input, idempotencyKey, CurrentUser, ct));
+
+    /// <summary>Платежі видачі.</summary>
+    [HttpGet("{id:long}/payments")]
+    [ProducesResponseType(typeof(IReadOnlyList<PaymentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<PaymentDto>>> GetPayments(long id, CancellationToken ct)
+        => Ok(await _loans.GetPaymentsAsync(id, ct));
+
+    /// <summary>Видати книги читачеві (лише оплачену видачу).</summary>
+    [HttpPost("{id:long}/issue")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Issue(long id, CancellationToken ct)
+    {
+        await _loans.IssueAsync(id, CurrentUser, ct);
+        return NoContent();
+    }
+
+    /// <summary>Повернення книг: Returned + примірники на полицю.</summary>
+    [HttpPost("{id:long}/return")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Return(long id, CancellationToken ct)
+    {
+        await _loans.ReturnAsync(id, CurrentUser, ct);
+        return NoContent();
+    }
+
+    /// <summary>Скасувати видачу (лише до оплати).</summary>
+    [HttpPost("{id:long}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Cancel(long id, CancellationToken ct)
+    {
+        await _loans.CancelAsync(id, CurrentUser, ct);
+        return NoContent();
+    }
+
+    /// <summary>М'яко видалити скасовану або повернену видачу.</summary>
+    [HttpDelete("{id:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(long id, CancellationToken ct)
+    {
+        await _loans.DeleteAsync(id, ct);
+        return NoContent();
+    }
+}
