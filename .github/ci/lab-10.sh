@@ -78,7 +78,7 @@ declare -A PROJ=( [identityserver]=Platform.IdentityServer/Platform.IdentityServ
   [feedback-api]=Services/Feedback/Feedback.WebApi/Feedback.WebApi.csproj [payments-api]=Services/Payments/Payments.Api/Payments.Api.csproj
   [aggregator]=Platform.Aggregator/Platform.Aggregator.csproj [gateway]=Platform.ApiGateway/Platform.ApiGateway.csproj )
 for name in "${!PROJ[@]}"; do
-  dotnet publish "${PROJ[$name]}" -c Release -t:PublishContainer -p:ContainerRepository=$name -p:ContainerImageTag=latest -v q -nologo 2>&1 | grep -E "error|Pushed image" | sed "s/^/   /"
+  dotnet publish "${PROJ[$name]}" -c Release -t:PublishContainer -p:ContainerRepository=$name -p:ContainerImageTag=latest -v q -nologo 2>&1 | { grep -E "error|image" || true; } | sed "s/^/   /"
 done
 docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep ":latest" | grep -E "$(echo ${!PROJ[@]} | tr ' ' '|')"
 kind load docker-image $(for n in "${!PROJ[@]}"; do echo -n "$n:latest "; done) --name library >/dev/null
