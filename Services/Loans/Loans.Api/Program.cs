@@ -21,7 +21,7 @@ var connectionString = builder.Configuration.GetConnectionString("LoansDb")
 
 // ---------- DI: DAL (Unit of Work — Scoped), BLL (сервіси, AutoMapper) ----------
 builder.Services.AddLoansDal(connectionString);
-builder.Services.AddLoansBll();
+builder.Services.AddLoansBll(builder.Configuration["AutoMapper:LicenseKey"]);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

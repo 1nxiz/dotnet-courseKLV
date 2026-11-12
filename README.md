@@ -76,7 +76,11 @@ erDiagram
 
 ```text
 README.md                 опис домену, запуск, розгортання БД, таблиця дублювання
+Library.sln               єдине рішення для всіх сервісів
 docs/                     ERD-діаграми, опис контекстів, приклади документів MongoDB
+Services/
+  Loans/                  Лаб. 02 — сервіс видач (ADO.NET + Dapper, тришарова архітектура)
+    Loans.Api · Loans.Bll · Loans.Dal · Loans.Domain · Loans.Tests · Loans.AppHost
 db/
   deploy.ps1 / deploy.sh  розгортання всіх трьох баз з нуля однією командою
   security.sql            окремі логіни застосунків з доступом лише до своєї БД
@@ -155,3 +159,40 @@ EXEC dbo.usp_ChangeLoanStatus @LoanId = @id, @NewStatus = N'Issued';
   (транзакційна зміна статусу з перевіркою переходу), `usp_ConfirmLoan`, `usp_RegisterPayment`.
 * **MongoDB:** embedding (`author`, `comments`), referencing (`discussionId`, `messages.discussionId`),
   гібрид (`discussions.lastMessages` + `messages`; `bookRatings.topReviewIds`), гнучка схема, денормалізоване `bookTitle`.
+
+## Лаб. 02 — сервіс Loans: тришарова архітектура на ADO.NET та Dapper
+
+Детальний опис, таблиця ендпоінтів і приклади запитів: [Services/Loans/README.md](Services/Loans/README.md).
+
+**Що потрібно:** .NET 8 SDK, Docker Desktop.
+
+**Запуск однією командою через .NET Aspire** (SQL Server у контейнері + API):
+
+```bash
+dotnet run --project Services/Loans/Loans.AppHost
+```
+
+У Aspire Dashboard ресурси `sql` і `loans-api` мають статус Running; Swagger — `http://localhost:5101/swagger`.
+
+**Схема рішення:** `Loans.Api` (контролери, ProblemDetails, Swagger, Serilog) → `Loans.Bll` (сервіси, DTO, AutoMapper)
+→ `Loans.Dal` (Generic Repository, 1 репозиторій на чистому ADO.NET — `ReaderRepository`, 2 на Dapper — `LoanRepository`,
+`BookRepository`, Unit of Work) → `LoansDb`; `Loans.Domain` — моделі й доменні винятки для DAL і BLL.
+
+| Сценарій | Запит | Результат |
+|---|---|---|
+| Створення | `POST /api/loans` | 201 + `Location` |
+| Транзакція з двох репозиторіїв | `POST /api/loans/{id}/confirm` | 204; при нестачі примірників — 409 і відкат статусу |
+| Повторне підтвердження | `POST /api/loans/{id}/confirm` | 409 ProblemDetails (THROW 50002 з процедури) |
+| Видача неоплаченої | `POST /api/loans/{id}/issue` | 409 ProblemDetails |
+| Неіснуючий Id | `GET /api/loans/999999` | 404 ProblemDetails (не 500) |
+| Некоректні дані | `POST /api/loans` з `readerId: 0` | 400 ValidationProblemDetails |
+| Ім'я з апострофом | `POST /api/readers` з `O'Brien` | 201 — параметризація без SQL-помилок |
+
+```bash
+curl -i http://localhost:5101/api/loans/999999
+curl -X POST http://localhost:5101/api/loans -H "Content-Type: application/json" -d "{\"readerId\":1,\"items\":[{\"bookId\":1,\"quantity\":1}]}"
+curl -i -X POST http://localhost:5101/api/loans/7/confirm
+```
+
+**Git:** кожна лабораторна — окрема гілка `lab-XX` від попередньої (feature-гілка), `main` — стабільна;
+зміни зливаються в `main` через Pull Request після захисту.

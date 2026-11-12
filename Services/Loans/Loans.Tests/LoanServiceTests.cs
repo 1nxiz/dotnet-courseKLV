@@ -26,7 +26,7 @@ public class LoanServiceTests
         _uow.SetupGet(u => u.Loans).Returns(_loans.Object);
         _uow.SetupGet(u => u.Books).Returns(_books.Object);
         _uow.SetupGet(u => u.Readers).Returns(_readers.Object);
-        var mapper = new MapperConfiguration(cfg => cfg.AddMaps(typeof(LoanProfile).Assembly)).CreateMapper();
+        var mapper = new MapperConfiguration(cfg => cfg.AddMaps(typeof(LoanProfile).Assembly), NullLoggerFactory.Instance).CreateMapper();
         _service = new LoanService(_uow.Object, mapper, NullLogger<LoanService>.Instance);
     }
 
