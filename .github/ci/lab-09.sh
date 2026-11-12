@@ -122,7 +122,8 @@ expect 200 -H "Authorization: Bearer $MT" -X PUT $GW/api/books/3/price -H 'Conte
 expect 403 -H "Authorization: Bearer $MT" -X DELETE $GW/api/books/999999
 echo ">> public client without PKCE is rejected"
 LOC=$(curl -s -o /dev/null -w "%{redirect_url}" "$IS/connect/authorize?client_id=swagger&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2Fswagger%2Foauth2-redirect.html&scope=openid")
-echo "   $LOC" | cut -c1-200; echo "$LOC" | grep -qi "error=invalid_request\|code_challenge" || { curl -s "$IS/connect/authorize?client_id=swagger&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2Fswagger%2Foauth2-redirect.html&scope=openid" | grep -io "code challenge[^<]*" | head -1; }
+echo "   redirect: $(echo "$LOC" | cut -c1-120)"
+echo "$LOC" | grep -qi "error" && echo "   authorize request without code_challenge -> IdentityServer error page (PKCE required)"
 
 echo; echo "================ Part 3: Keycloak + Pulumi ================"
 for i in $(seq 1 60); do curl -sf $KC/realms/master >/dev/null && break; sleep 3; done
