@@ -42,6 +42,11 @@ var keycloakAdmin = builder.AddParameter("keycloak-admin");
 var keycloakPassword = builder.AddParameter("keycloak-password", secret: true);
 var keycloak = builder.AddKeycloak("keycloak", 8080, keycloakAdmin, keycloakPassword)
                       .WithDataVolume("library-keycloak-data");
+// Лаб. 10: у маніфесті Keycloak запускається командою `start` (production-режим), який без цих змінних вимагає HTTPS і hostname.
+// У навчальному кластері — HTTP усередині мережі Kubernetes, hostname визначається із запиту.
+if (builder.ExecutionContext.IsPublishMode)
+    keycloak.WithEnvironment("KC_HTTP_ENABLED", "true")
+            .WithEnvironment("KC_HOSTNAME_STRICT", "false");
 
 // Auth Service — ASP.NET Identity + JWT на окремій базі IdentityDb
 var authApi = builder.AddProject<Projects.Auth_Api>("auth-api")
