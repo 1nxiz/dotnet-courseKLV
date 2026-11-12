@@ -34,12 +34,14 @@ sleep 3
 
 echo ">> topology declared in code"
 curl -s "$MQ/exchanges/%2F" | python3 -c "import json,sys;n=[e['name'] for e in json.load(sys.stdin)];print('   exchanges',[x for x in n if not x.startswith('amq') and x]);assert {'books-events','loans-events','platform.dlx'}<=set(n)"
+for n in loans.books-sync feedback.books-sync books.loans-sync; do
+  wait_for "consumers on $n" "curl -s $MQ/queues/%2F/$n | python3 -c 'import json,sys;print(min(json.load(sys.stdin)[\"consumers\"],1))'" "1" 40
+done
 curl -s "$MQ/queues/%2F" | python3 -c "
 import json,sys;q={x['name']:x for x in json.load(sys.stdin)}
-need=['loans.books-sync','feedback.books-sync','books.loans-sync']
-for n in need:
-  print('   queue',n,'consumers',q[n]['consumers'],'dlx',q[n]['arguments'].get('x-dead-letter-exchange'),'| dlq', n+'.dlq' in q)
-  assert q[n]['consumers']>=1 and q[n]['durable'] and n+'.dlq' in q"
+for n in ['loans.books-sync','feedback.books-sync','books.loans-sync']:
+  print('   queue',n,'durable',q[n]['durable'],'dlx',q[n]['arguments'].get('x-dead-letter-exchange'),'| dlq', n+'.dlq' in q)
+  assert q[n]['durable'] and n+'.dlq' in q and q[n]['arguments'].get('x-dead-letter-exchange')=='platform.dlx'"
 curl -s "$MQ/queues/%2F/loans.books-sync/bindings" | python3 -c "import json,sys;print('   bindings',[b['routing_key'] for b in json.load(sys.stdin) if b['source']])"
 for p in 5101 5102 5103; do curl -s http://localhost:$p/health/ready | grep -q '"messaging"' && echo "   :$p readiness includes messaging"; done
 
