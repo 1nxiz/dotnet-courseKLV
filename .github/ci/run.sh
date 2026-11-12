@@ -4,6 +4,12 @@ set -euo pipefail
 LAB="${1:-01}"
 CI_DIR="$(cd "$(dirname "$0")" && pwd)"
 export CI_DIR LAB
+# рядки підключення до контейнерів CI (для інтеграційних/API-тестів і smoke-сценаріїв)
+export ConnectionStrings__LoansDb="Server=localhost,1433;Database=LoansDb;User Id=sa;Password=$SA_PASSWORD;TrustServerCertificate=True;Encrypt=False"
+export ConnectionStrings__BooksDb="Server=localhost,1433;Database=BooksDb;User Id=sa;Password=$SA_PASSWORD;TrustServerCertificate=True;Encrypt=False"
+export ConnectionStrings__FeedbackDb="mongodb://localhost:27017/FeedbackDb"
+export ConnectionStrings__redis="localhost:6379"
+export ConnectionStrings__messaging="amqp://guest:guest@localhost:5672"
 
 echo "::group::Repository tree"
 find . -path ./.git -prune -o -type f -print | grep -v '/bin/' | grep -v '/obj/' | sort | head -400
