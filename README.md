@@ -534,3 +534,49 @@ curl -X POST http://localhost:5010/connect/token -d grant_type=client_credential
 Postman: OAuth 2.0 -> Authorization Code (With PKCE), Auth URL `http://localhost:5010/connect/authorize`,
 Token URL `http://localhost:5010/connect/token`, client `postman` / `postman_secret`, користувачі alice/mike/uma/gary, пароль `Pass_123456`.
 Keycloak: Auth URL `http://localhost:8080/realms/library/protocol/openid-connect/auth`, client `library-postman` / `postman_secret`.
+
+## Лаб. 10 — розгортання в Kubernetes (Aspir8 + ручні маніфести)
+
+Потрібно: Docker Desktop з увімкненим Kubernetes (Settings → Kubernetes → Enable), `kubectl`, `dotnet tool install -g aspirate`.
+Аналоги з методички: `catalog-api` = **books-api**, `orders-api` = **loans-api**, `reviews-api` = **feedback-api**, `/api/products` = **`/api/books`**.
+
+### Ч. 1 — Aspir8 (aspirate): уся платформа з моделі AppHost
+```bash
+kubectl config use-context docker-desktop
+cd Platform.AppHost
+aspirate init                        # один раз: реєстр (порожній = локальний Docker), тег latest
+aspirate generate                    # образи (dotnet publish /t:PublishContainer) + YAML у ./aspirate-output
+                                     # запитає пароль для шифрування секретів і значення параметрів sql-password, keycloak-admin, keycloak-password
+aspirate apply                       # або: kubectl apply -k ./aspirate-output
+kubectl -n library-aspirate get pods -w           # усі Running (SQL Server і Keycloak стартують 1–2 хв)
+kubectl -n library-aspirate get services
+kubectl -n library-aspirate logs deploy/gateway
+kubectl -n library-aspirate port-forward service/gateway 8080:5000
+# токен: POST http://localhost:8080/auth/login {"userNameOrEmail":"admin","password":"Admin_Pass123!"}
+# далі:  GET  http://localhost:8080/api/books   (Authorization: Bearer <accessToken>)
+aspirate destroy                     # перед Ч. 2
+```
+* `Platform.AppHost/aspirate-output` — згенеровані маніфести в репозиторії **без секретів** (`*.secrets` і `aspirate-state.json` у `.gitignore`):
+  namespace `library-aspirate`, StatefulSet для `sql`, `identityserver-sql`, `mongo`, `redis`, `messaging` (RabbitMQ), `keycloak`;
+  Deployment + Service + ConfigMap (`*-env`) для `identityserver`, `auth-api`, `loans-api`, `books-api`, `feedback-api`,
+  `payments-api`, `aggregator`, `gateway`; Aspire Dashboard (`dashboard.yaml`).
+* Зміни в AppHost для кластера: у режимі публікації прибрано https-endpoint проєктів (TLS — на Ingress; інакше в books-api/loans-api
+  https і gRPC отримували однаковий порт), `Database__InitializeOnStartup=true` для loans-api і `Database__Seed=true` для books-api
+  (у Production без них LoansDb не створюється, а каталог порожній).
+
+### Ч. 2–3 — ручні маніфести books-api + gateway, ConfigMap і Secret
+Усе в `deploy/k8s` (покроково — `deploy/k8s/README.md`):
+* Dockerfile: `Services/Books/Books.Api/Dockerfile`, `Platform.ApiGateway/Dockerfile` — багатоетапні: спершу лише `*.csproj` +
+  `dotnet restore` (кешований шар), потім build/publish, фінальний образ `aspnet:8.0` слухає 8080.
+* Deployment з 2 репліками, `imagePullPolicy: IfNotPresent`, liveness `/health/live` і readiness `/health/ready` (endpoints Лаб. 07,
+  зареєстровані в усіх середовищах), startupProbe, requests/limits, RollingUpdate без простою.
+* Service типу ClusterIP: `books-api` (80 → 8080, 81 → 8081 gRPC), `gateway` (80 → 8080), `sql` (1433).
+* ConfigMap `gateway-config` з `services__books-api__http__0=http://books-api` — той самий формат, що Aspire (Лаб. 05), тому код
+  Gateway не змінюється; ConfigMap `books-config` (Kestrel-порти, режим міграцій).
+* Secrets створюються командами `kubectl create secret` (не в YAML): `books-secrets` (`ConnectionStrings__BooksDb`, `Jwt__SecretKey`),
+  `gateway-secrets` (`Jwt__SecretKey` з Лаб. 09), `sql-secrets` (пароль SA); підключені через `envFrom`.
+* Міграції BooksDb — окремий Job `books-db-migrate` (режим `Database:MigrateOnly` у `Program.cs`), а не кожна репліка; дані SQL Server — у PVC.
+
+Перевірено в CI (kind): `GET /api/books` через `port-forward service/gateway 8080:80` → Gateway → books-api (DNS Kubernetes);
+видалений под відновлюється; при `scale deploy/sql --replicas=0` поди books-api `Running`, але `0/1 Ready` (без перезапусків),
+після повернення бази — знову Ready; зміна ConfigMap видна після `rollout restart`; Secret лише Base64.
