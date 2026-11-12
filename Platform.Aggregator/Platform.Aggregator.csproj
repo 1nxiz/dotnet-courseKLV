@@ -10,7 +10,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="9.5.2" />
-    <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="8.0.1" />
+    <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
     <PackageReference Include="Grpc.HealthCheck" Version="2.67.0" />
   </ItemGroup>
   <!-- ті самі .proto, що й у сервісах, але генерується лише клієнтська частина -->
