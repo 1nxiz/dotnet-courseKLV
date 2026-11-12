@@ -68,4 +68,7 @@ python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   via Aspire
 expect 200 "$GW/api/reviews?bookId=4"
 expect 200 "$GW/api/books?page=1"
 docker ps --format '{{.Names}} {{.Image}}' | grep -Ei "sql|mongo"
+echo ">> Dockerfiles build (Books.Api, ApiGateway)"
+docker build -q -t books-api:ci -f Services/Books/Books.Api/Dockerfile .
+docker build -q -t gateway:ci -f Platform.ApiGateway/Dockerfile .
 echo "Lab 05 smoke checks passed"
