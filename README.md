@@ -547,7 +547,9 @@ cd Platform.AppHost
 aspirate init                        # один раз: реєстр (порожній = локальний Docker), тег latest
 aspirate generate                    # образи (dotnet publish /t:PublishContainer) + YAML у ./aspirate-output
                                      # запитає пароль для шифрування секретів і значення параметрів sql-password, keycloak-admin, keycloak-password
-aspirate apply                       # або: kubectl apply -k ./aspirate-output
+# якщо крок «Handling Aspire Manifest» падає — згенерувати маніфест окремо і передати його aspirate:
+#   dotnet run -- --publisher manifest --output-path manifest.json && aspirate generate -m manifest.json
+aspirate apply                       # розшифровує секрети (*.secrets) і виконує kubectl apply -k ./aspirate-output
 kubectl -n library-aspirate get pods -w           # усі Running (SQL Server і Keycloak стартують 1–2 хв)
 kubectl -n library-aspirate get services
 kubectl -n library-aspirate logs deploy/gateway
@@ -556,13 +558,17 @@ kubectl -n library-aspirate port-forward service/gateway 8080:5000
 # далі:  GET  http://localhost:8080/api/books   (Authorization: Bearer <accessToken>)
 aspirate destroy                     # перед Ч. 2
 ```
-* `Platform.AppHost/aspirate-output` — згенеровані маніфести в репозиторії **без секретів** (`*.secrets` і `aspirate-state.json` у `.gitignore`):
+* `Platform.AppHost/aspirate-output` — згенеровані маніфести в репозиторії **без секретів**: рядки підключення проєктів aspirate
+  кладе в Secret-генератори (`.<ресурс>.secrets`, у `.gitignore` разом з `aspirate-state.json`), а згенеровані паролі контейнерів
+  (Mongo, Redis, RabbitMQ, Keycloak) у копії в репозиторії замінено на `<set-by-aspirate-generate>` — для розгортання маніфести
+  генеруються заново командою `aspirate generate`:
   namespace `library-aspirate`, StatefulSet для `sql`, `identityserver-sql`, `mongo`, `redis`, `messaging` (RabbitMQ), `keycloak`;
   Deployment + Service + ConfigMap (`*-env`) для `identityserver`, `auth-api`, `loans-api`, `books-api`, `feedback-api`,
   `payments-api`, `aggregator`, `gateway`; Aspire Dashboard (`dashboard.yaml`).
 * Зміни в AppHost для кластера: у режимі публікації прибрано https-endpoint проєктів (TLS — на Ingress; інакше в books-api/loans-api
   https і gRPC отримували однаковий порт), `Database__InitializeOnStartup=true` для loans-api і `Database__Seed=true` для books-api
-  (у Production без них LoansDb не створюється, а каталог порожній).
+  (у Production без них LoansDb не створюється, а каталог порожній); Keycloak у кластері стартує командою `start` — для неї
+  `KC_HTTP_ENABLED=true` і `KC_HOSTNAME_STRICT=false`.
 
 ### Ч. 2–3 — ручні маніфести books-api + gateway, ConfigMap і Secret
 Усе в `deploy/k8s` (покроково — `deploy/k8s/README.md`):
