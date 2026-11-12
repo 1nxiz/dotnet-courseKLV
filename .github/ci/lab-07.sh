@@ -49,8 +49,9 @@ pkill -f "Feedback.WebApi" || true
 sleep 2
 for i in $(seq 1 15); do curl -s -o /tmp/resp.json "http://localhost:5090/api/aggregator/loans/1/full?transport=http&cache=false"; done
 python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   warnings',d['warnings']);assert any('feedback-api' in w for w in d['warnings'])"
-grep -q "Retry 1 to feedback-api" /tmp/svc-aggregator.log && echo "   retries logged"
-grep -q "Circuit to feedback-api OPENED" /tmp/svc-aggregator.log && echo "   circuit opened (logged)"
+# логи — CompactJson: шаблон у "@mt", значення у властивостях
+grep '"@mt":"Retry {Attempt} to {Service}' /tmp/svc-aggregator.log | grep -q '"Service":"feedback-api"' && echo "   retries logged"
+grep '"@mt":"Circuit to {Service} OPENED' /tmp/svc-aggregator.log | grep -m1 '"Service":"feedback-api"' | cut -c1-260
 T=$(curl -s -o /dev/null -w "%{time_total}" "http://localhost:5090/api/aggregator/loans/1/full?transport=http&cache=false")
 echo "   with open circuit the call takes ${T}s (no waiting for timeouts)"
 python3 -c "assert $T < 2"
