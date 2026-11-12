@@ -135,7 +135,11 @@ pulumi login --local
 pulumi stack select dev --create
 pulumi config set library:temporaryPasswords false      # у CI паролі не тимчасові (password grant)
 pulumi preview --non-interactive --diff 2>&1 | tail -40
-pulumi up --yes --non-interactive --skip-preview 2>&1 | tail -8
+if ! pulumi up --yes --non-interactive --skip-preview > /tmp/pulumi-up.log 2>&1; then
+  sed -n '/Diagnostics:/,/Outputs:/p' /tmp/pulumi-up.log | head -40
+  echo "!! pulumi up failed — retry"; pulumi up --yes --non-interactive --skip-preview > /tmp/pulumi-up.log 2>&1 || { sed -n '/Diagnostics:/,$p' /tmp/pulumi-up.log | head -60; exit 1; }
+fi
+tail -6 /tmp/pulumi-up.log
 pulumi stack output --json | python3 -c "import json,sys;d=json.load(sys.stdin);print('   outputs:',{k:d[k] for k in ('RealmUrl','AdminConsoleUrl','ClientIds')})"
 pulumi preview --non-interactive 2>&1 | grep -E "unchanged|Resources" | tail -2
 popd >/dev/null
