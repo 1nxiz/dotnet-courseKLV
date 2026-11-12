@@ -27,7 +27,8 @@ public sealed class RequirePermissionAttribute : AuthorizeAttribute
 /// <list type="number">
 /// <item>Keycloak RPT: claim <c>authorization.permissions[].scopes</c> (Authorization Services, Permission Policies);</item>
 /// <item>Keycloak access token: client roles ресурс-серверів <c>resource_access.&lt;client&gt;.roles</c> (composite-ролі realm);</item>
-/// <item>OAuth 2.0 scopes (<c>scope</c>) — Duende IdentityServer, зокрема Client Credentials для Aggregator;</item>
+/// <item>OAuth 2.0 scopes (<c>scope</c>) — Duende IdentityServer: для Client Credentials (немає sub) це і є права сервісу;
+/// для токена користувача scope лише звужує права його ролі (перетин scope ∩ матриця ролі);</item>
 /// <item>ролі (<c>role</c>, <c>realm_access.roles</c>) — через матрицю <see cref="Permissions.RoleMatrix"/> (Auth Service, IdentityServer).</item>
 /// </list>
 /// Немає permission -> вимога не виконана -> 403 (а не 500); немає токена -> 401.
@@ -62,16 +63,26 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
                 if (role.Contains(':')) result.Add(role);
 
         // 3) OAuth 2.0 scopes (IdentityServer): окремі claims або один рядок через пробіл
+        var scopes = new HashSet<string>(StringComparer.Ordinal);
         foreach (var claim in user.FindAll("scope"))
             foreach (var scope in claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                if (scope.Contains(':')) result.Add(scope);
+                if (scope.Contains(':')) scopes.Add(scope);
 
         // 4) ролі -> матриця
+        var fromRoles = new HashSet<string>(StringComparer.Ordinal);
         var roles = user.FindAll("role").Concat(user.FindAll(ClaimTypes.Role)).Select(c => c.Value)
             .Concat(user.FindAll("realm_access").SelectMany(c => ReadJson(c.Value, root => Strings(root, "roles"))));
         foreach (var role in roles)
             if (Permissions.RoleMatrix.TryGetValue(role, out var granted))
-                result.UnionWith(granted);
+                fromRoles.UnionWith(granted);
+
+        var isUserToken = user.HasClaim(c => c.Type is "sub" or ClaimTypes.NameIdentifier);
+        if (!isUserToken)
+            result.UnionWith(scopes);                 // сервіс (Client Credentials): права = видані клієнту scopes
+        else if (scopes.Count == 0)
+            result.UnionWith(fromRoles);              // Auth Service: лише ролі
+        else
+            result.UnionWith(scopes.Intersect(fromRoles)); // делегований доступ: scope лише ЗВУЖУЄ права ролі користувача
 
         return result;
     }
