@@ -82,6 +82,8 @@ docs/                     ERD-діаграми, опис контекстів, �
 Services/
   Loans/                  Лаб. 02 — сервіс видач (ADO.NET + Dapper, тришарова архітектура)
     Loans.Api · Loans.Bll · Loans.Dal · Loans.Domain · Loans.Tests
+  Books/                  Лаб. 03 — каталог книг (EF Core Code First, специфікації)
+    Books.Api · Books.Bll · Books.Dal (Configurations/, Migrations/, Seeding/) · Books.Domain · Books.Tests
 db/
   deploy.ps1 / deploy.sh  розгортання всіх трьох баз з нуля однією командою
   security.sql            окремі логіни застосунків з доступом лише до своєї БД
@@ -199,3 +201,22 @@ curl -i -X POST http://localhost:5101/api/loans/7/confirm
 
 **Git:** кожна лабораторна — окрема гілка `lab-XX` від попередньої (feature-гілка), `main` — стабільна;
 зміни зливаються в `main` через Pull Request після захисту.
+
+## Лаб. 03 — сервіс Books: тришарова архітектура на EF Core
+
+Детально: [Services/Books/README.md](Services/Books/README.md).
+
+```bash
+dotnet run --project Services/Books/Books.Api          # застосовує міграції, сідить дані; Swagger: http://localhost:5102/swagger
+dotnet ef database update --project Services/Books/Books.Dal --startup-project Services/Books/Books.Api   # або вручну
+```
+
+* Code First + Fluent API (`Books.Dal/Configurations`), міграція `InitialCreate` + SQL-скрипт (`Books.Dal/Migrations`).
+* Async Generic Repository + 3 специфічні: eager (`BookRepository`), explicit (`GenreRepository`), LINQ M:N (`BookGenreRepository`); Unit of Work з одним `SaveChangesAsync`.
+* Пагінація/фільтри/сортування в SQL через специфікації (`Books.Bll/Specifications`), DataAnnotations + FluentValidation,
+  ProblemDetails, Serilog (console + file, SQL-команди EF Core, CorrelationId/UserId).
+
+```bash
+curl "http://localhost:5102/api/books?page=2&pageSize=5&sortBy=price&sortDir=desc"
+curl -i -X POST http://localhost:5102/api/books -H "Content-Type: application/json" -d "{\"title\":\"\",\"isbn\":\"bad\",\"price\":-1,\"authorId\":0}"
+```
