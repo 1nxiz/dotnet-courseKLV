@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  serviceName: "keycloak"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.3
+          imagePullPolicy: IfNotPresent
+          args:
+            - 'start'
+            - '--import-realm'
+          ports:
+            - containerPort: 8080
+            - containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: keycloak-env
+          volumeMounts:
+            - name: library-keycloak-data
+              mountPath: /opt/keycloak/data
+  volumeClaimTemplates:
+    - metadata:
+        name: library-keycloak-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loans-api
+  labels:
+    app: loans-api
+spec:
+  minReadySeconds: 60
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loans-api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: loans-api
+    spec:
+      containers:
+      - name: loans-api
+        image: loans-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 5111
+        - name: http
+          containerPort: 5101
+        envFrom:
+        - configMapRef:
+            name: loans-api-env
+        - secretRef:
+            name: loans-api-secrets
+      terminationGracePeriodSeconds: 180

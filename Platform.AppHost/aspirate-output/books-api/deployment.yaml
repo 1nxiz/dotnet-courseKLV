@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: books-api
+  labels:
+    app: books-api
+spec:
+  minReadySeconds: 60
+  replicas: 1
+  selector:
+    matchLabels:
+      app: books-api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: books-api
+    spec:
+      containers:
+      - name: books-api
+        image: books-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 5112
+        - name: http
+          containerPort: 5102
+        envFrom:
+        - configMapRef:
+            name: books-api-env
+        - secretRef:
+            name: books-api-secrets
+      terminationGracePeriodSeconds: 180

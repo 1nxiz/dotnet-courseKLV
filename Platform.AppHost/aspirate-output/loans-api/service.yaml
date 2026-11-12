@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loans-api
+spec:
+  type: ClusterIP
+  selector:
+    app: loans-api
+  ports:
+  - name: grpc
+    port: 5111
+    targetPort: 5111
+  - name: http
+    port: 5101
+    targetPort: 5101

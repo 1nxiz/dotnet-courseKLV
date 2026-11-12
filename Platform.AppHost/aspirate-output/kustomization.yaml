@@ -1,0 +1,24 @@
+namespace: library-aspirate
+
+resources:
+- sql
+- mongo
+- redis
+- messaging
+- identityserver-sql
+- identityserver
+- keycloak
+- auth-api
+- loans-api
+- books-api
+- feedback-api
+- payments-api
+- aggregator
+- gateway
+- namespace.yaml
+- dashboard.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+

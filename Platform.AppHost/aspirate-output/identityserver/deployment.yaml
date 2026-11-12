@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identityserver
+  labels:
+    app: identityserver
+spec:
+  minReadySeconds: 60
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identityserver
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: identityserver
+    spec:
+      containers:
+      - name: identityserver
+        image: identityserver:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 5010
+        envFrom:
+        - configMapRef:
+            name: identityserver-env
+        - secretRef:
+            name: identityserver-secrets
+      terminationGracePeriodSeconds: 180

@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-api
+  labels:
+    app: auth-api
+spec:
+  minReadySeconds: 60
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: auth-api
+    spec:
+      containers:
+      - name: auth-api
+        image: auth-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 5104
+        envFrom:
+        - configMapRef:
+            name: auth-api-env
+        - secretRef:
+            name: auth-api-secrets
+      terminationGracePeriodSeconds: 180

@@ -1,0 +1,14 @@
+resources:
+- statefulset.yaml
+- service.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: redis-env
+  literals:
+    - REDIS_PASSWORD=<set-by-aspirate-generate>
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+    - OTEL_SERVICE_NAME=redis
+

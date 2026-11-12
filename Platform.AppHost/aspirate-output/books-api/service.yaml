@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: books-api
+spec:
+  type: ClusterIP
+  selector:
+    app: books-api
+  ports:
+  - name: grpc
+    port: 5112
+    targetPort: 5112
+  - name: http
+    port: 5102
+    targetPort: 5102

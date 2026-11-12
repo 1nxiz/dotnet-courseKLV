@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feedback-api
+  labels:
+    app: feedback-api
+spec:
+  minReadySeconds: 60
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feedback-api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: feedback-api
+    spec:
+      containers:
+      - name: feedback-api
+        image: feedback-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 5113
+        - name: http
+          containerPort: 5103
+        envFrom:
+        - configMapRef:
+            name: feedback-api-env
+        - secretRef:
+            name: feedback-api-secrets
+      terminationGracePeriodSeconds: 180
