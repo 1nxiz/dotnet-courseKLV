@@ -72,6 +72,14 @@ kubectl delete namespace library --wait=false
 
 echo; echo "================ Part 1: Aspir8 (aspirate) ================"
 dotnet tool install -g aspirate --version 9.1.0 >/dev/null; export PATH=$PATH:$HOME/.dotnet/tools
+pushd Platform.AppHost >/dev/null
+aspirate generate --non-interactive --secret-password "ci-aspirate-secret" --skip-build --include-dashboard true \
+  --image-pull-policy IfNotPresent --namespace library-aspirate --container-image-tag latest --output-format kustomize \
+  -pa sql-password='Library_Pass123!' -pa keycloak-admin=admin -pa keycloak-password='Admin_Pass123!' > /tmp/aspirate.log 2>&1 || { sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate.log | tail -80; exit 1; }
+sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate.log | grep -E "^── |Execution" 
+echo "---- generated files"; find aspirate-output -type f | sort
+echo "---- secrets are NOT in ConfigMaps:"; grep -rl "Password=\|password=" aspirate-output --include=kustomization.yaml || echo "   none"
+popd >/dev/null
 echo ">> images for every project (as aspirate does: dotnet publish /t:PublishContainer, no Dockerfile)"
 declare -A PROJ=( [identityserver]=Platform.IdentityServer/Platform.IdentityServer.csproj [auth-api]=Services/Auth/Auth.Api/Auth.Api.csproj
   [loans-api]=Services/Loans/Loans.Api/Loans.Api.csproj [books-api]=Services/Books/Books.Api/Books.Api.csproj
@@ -84,11 +92,6 @@ docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep ":latest" | g
 kind load docker-image $(for n in "${!PROJ[@]}"; do echo -n "$n:latest "; done) --name library >/dev/null
 
 pushd Platform.AppHost >/dev/null
-aspirate generate --non-interactive --secret-password "ci-aspirate-secret" --skip-build --include-dashboard true \
-  --image-pull-policy IfNotPresent --namespace library-aspirate --container-image-tag latest --output-format kustomize \
-  -pa sql-password='Library_Pass123!' -pa keycloak-admin=admin -pa keycloak-password='Admin_Pass123!' 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Done|Error|error|Execution" | tail -40
-echo "---- generated files"; find aspirate-output -type f | sort
-echo "---- secrets are NOT in ConfigMaps:"; grep -rl "Password=\|password=" aspirate-output --include=kustomization.yaml || echo "   none"
 aspirate apply --help 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "^\s+-" | cut -c1-120
 kubectl apply -k aspirate-output
 popd >/dev/null
