@@ -1,0 +1,68 @@
+# Ручна перевірка будь-якої гілки лаби: Actions → verify → Run workflow → ref = lab-0X.
+# Піднімає SQL Server, MongoDB, Redis, RabbitMQ у Docker, розгортає бази зі скриптів db/,
+# збирає рішення, запускає тести та smoke-сценарії відповідної лаби (.github/ci/lab-XX.sh).
+name: verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Гілка або коміт для перевірки (наприклад, lab-02)"
+        required: true
+        default: lab-01
+      lab:
+        description: "Номер лаби для smoke-сценаріїв (01..10)"
+        required: true
+        default: "01"
+
+env:
+  SA_PASSWORD: "Str0ng!Passw0rd"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout CI scripts (main)
+        uses: actions/checkout@v4
+        with:
+          path: _ci
+
+      - name: Checkout lab ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: repo
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+
+      - name: Start infrastructure containers
+        run: |
+          W=$GITHUB_WORKSPACE
+          docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SA_PASSWORD" -p 1433:1433 -v $W:$W mcr.microsoft.com/mssql/server:2022-latest
+          docker run -d --name mongo -p 27017:27017 -v $W:$W mongo:7
+          docker run -d --name redis -p 6379:6379 redis:7
+          docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+          for i in $(seq 1 60); do
+            docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT @@VERSION"
+
+      - name: Run lab checks
+        working-directory: repo
+        env:
+          SQL_CONTAINER: mssql
+          MONGO_CONTAINER: mongo
+        run: bash $GITHUB_WORKSPACE/_ci/.github/ci/run.sh "${{ inputs.lab }}"
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs mssql 2>&1 | tail -50 || true
+          for f in /tmp/svc-*.log; do echo "=== $f"; tail -200 "$f"; done || true
