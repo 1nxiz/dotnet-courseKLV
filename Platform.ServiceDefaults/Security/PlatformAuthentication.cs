@@ -131,12 +131,19 @@ public static class PlatformAuthentication
     /// <summary>Причина відхилення токена — у структурований лог (Warning), а не лише 401 у відповіді.</summary>
     private static JwtBearerEvents LoggingEvents(string scheme) => new()
     {
-        OnAuthenticationFailed = context =>
+        OnAuthenticationFailed = async context =>
         {
-            context.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                .CreateLogger("Platform.Authentication")
-                .LogWarning("JWT rejected by {Scheme} for {Path}: {Reason}", scheme, context.Request.Path, context.Exception.Message);
-            return Task.CompletedTask;
+            var logger = context.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                .CreateLogger("Platform.Authentication");
+            string? metadataError = null;
+            if (context.Exception is SecurityTokenSignatureKeyNotFoundException or SecurityTokenInvalidSignatureException
+                && context.Options.ConfigurationManager is { } manager)
+            {
+                try { await manager.GetConfigurationAsync(context.HttpContext.RequestAborted); }
+                catch (Exception ex) { metadataError = ex.GetBaseException().Message; }   // напр. недоступний discovery document
+            }
+            logger.LogWarning("JWT rejected by {Scheme} for {Path}: {Reason} {MetadataAddress} {MetadataError}", scheme,
+                context.Request.Path, context.Exception.Message, context.Options.MetadataAddress ?? context.Options.Authority, metadataError);
         }
     };
 
