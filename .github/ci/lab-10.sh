@@ -73,7 +73,8 @@ kubectl delete namespace library --wait=false
 echo; echo "================ Part 1: Aspir8 (aspirate) ================"
 dotnet tool install -g aspirate --version 9.1.0 >/dev/null; export PATH=$PATH:$HOME/.dotnet/tools
 pushd Platform.AppHost >/dev/null
-aspirate generate --non-interactive --secret-password "ci-aspirate-secret" --skip-build --include-dashboard true \
+dotnet run -- --publisher manifest --output-path manifest.json > /tmp/manifest.log 2>&1 || { tail -40 /tmp/manifest.log; exit 1; }
+aspirate generate --non-interactive -m manifest.json --secret-password "ci-aspirate-secret" --skip-build --include-dashboard true \
   --image-pull-policy IfNotPresent --namespace library-aspirate --container-image-tag latest --output-format kustomize \
   -pa sql-password='Library_Pass123!' -pa keycloak-admin=admin -pa keycloak-password='Admin_Pass123!' > /tmp/aspirate.log 2>&1 || { sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate.log | tail -80; exit 1; }
 sed 's/\x1b\[[0-9;]*m//g' /tmp/aspirate.log | grep -E "^── |Execution" 
@@ -104,7 +105,8 @@ $A wait --for=condition=available deploy --all --timeout=900s || true
 $A get pods,services
 NOT_RUNNING=$($A get pods --no-headers | awk '$3!="Running"' | wc -l)
 $A get pods --no-headers | awk '$3!="Running"' || true
-for d in $($A get deploy -o name); do echo "== logs $d (Error/Fatal)"; $A logs $d --tail=400 2>/dev/null | grep -E '"@l":"(Error|Fatal)"' | grep -o '"@mt":"[^"]*"' | sort | uniq -c | head -5; done
+for d in $($A get deploy -o name); do echo "== logs $d (Error/Fatal)"; $A logs $d --tail=400 2>/dev/null | grep -E '"@l":"(Error|Fatal)"' | grep -o '"@mt":"[^"]*"' | sort | uniq -c | head -5 || true; done
+$A logs keycloak-0 --tail=15 2>/dev/null | cut -c1-200 || true
 test "$NOT_RUNNING" -eq 0
 
 GP=$($A get service gateway -o jsonpath='{.spec.ports[?(@.name=="http")].port}')
@@ -121,6 +123,9 @@ expect 200 -H "Authorization: Bearer $ADM" "http://localhost:8080/api/aggregator
 python3 -c "import json;d=json.load(open('/tmp/resp.json'));print('   aggregator (gRPC inside cluster): books',len(d['books']),'warnings',d['warnings'])"
 kill $PF || true
 
+# у репозиторій — без секретів: *.secrets не пакуються, а паролі контейнерів (aspirate кладе їх у ConfigMap-літерали) замінюються
+sed -i -E 's/^(\s+- [A-Z_]*(PASSWORD|PASS)=).*/\1<set-by-aspirate-generate>/' Platform.AppHost/aspirate-output/*/kustomization.yaml
+grep -rhE "PASSWORD|PASS=" Platform.AppHost/aspirate-output | sort -u
 tar -czf /tmp/aspirate-output.tgz --exclude='*.secrets' --exclude='.*.secrets' -C Platform.AppHost aspirate-output
 echo "=====BEGIN-ASPIRATE-TGZ====="; base64 -w0 /tmp/aspirate-output.tgz; echo; echo "=====END-ASPIRATE-TGZ====="
 echo "Lab 10 smoke checks passed"
