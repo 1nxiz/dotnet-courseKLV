@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: books-api
+  namespace: library
+  labels: { app: books-api }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: books-api }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # оновлення без простою: нова репліка Ready -> стара зупиняється
+  template:
+    metadata:
+      labels: { app: books-api }
+    spec:
+      containers:
+        - name: books-api
+          image: books-api:v1                 # docker build -t books-api:v1 -f Services/Books/Books.Api/Dockerfile .
+          imagePullPolicy: IfNotPresent       # локальний образ (Docker Desktop / kind load) — без реєстру
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 8081
+          envFrom:
+            - configMapRef: { name: books-config }     # відкриті налаштування
+            - secretRef: { name: books-secrets }       # ConnectionStrings__BooksDb, Jwt__SecretKey
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits: { memory: "512Mi" }
+          startupProbe:                       # повільний старт (з'єднання з БД) не вважається «зависанням»
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:                      # Лаб. 07: лише процес (self) — збій -> перезапуск контейнера
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:                     # Лаб. 07: БД (books-db) та ін. — збій -> под виключається з Service
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3

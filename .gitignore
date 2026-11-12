@@ -426,3 +426,8 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Лаб. 10: секрети aspirate не комітимо
+Platform.AppHost/aspirate-state.json
+Platform.AppHost/aspirate-output/**/*.secrets
+Platform.AppHost/aspirate-output/**/.*.secrets

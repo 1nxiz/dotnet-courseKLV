@@ -1,0 +1,24 @@
+# Одноразовий Job: застосувати EF-міграції BooksDb (і демо-сідінг) ДО запуску реплік — щоб 2 репліки не змагалися
+# за одну міграцію. Той самий образ books-api:v1 у режимі Database:MigrateOnly (процес завершується після міграції).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: books-db-migrate
+  namespace: library
+spec:
+  backoffLimit: 10                    # SQL Server може ще стартувати — Job повторить спробу
+  template:
+    metadata:
+      labels: { app: books-db-migrate }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: books-api:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: books-config }
+            - secretRef: { name: books-secrets }
+          env:
+            - name: Database__MigrateOnly
+              value: "true"

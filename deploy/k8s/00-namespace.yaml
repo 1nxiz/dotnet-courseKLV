@@ -1,0 +1,5 @@
+# Окремий namespace для ручного розгортання (Aspirate розгортає платформу в іншому — library-aspirate)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: library

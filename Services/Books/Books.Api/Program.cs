@@ -103,14 +103,22 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSerilogRequestLogging();
 
-// ---------- Міграції + сідінг (сідінг вимикається в Production) ----------
-if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+// ---------- Міграції + сідінг (сідінг вимикається в Production; Database:Seed=true вмикає його явно) ----------
+// Лаб. 10: Database:MigrateOnly=true — режим Kubernetes Job: застосувати міграції (і сідінг) та завершитися.
+// Deployment з кількома репліками запускається з Database:MigrateOnStartup=false, тож репліки не змагаються за міграцію.
+var migrateOnly = app.Configuration.GetValue<bool>("Database:MigrateOnly");
+if (migrateOnly || app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await DbInitializer.MigrateAsync(db, app.Configuration.GetValue<bool>("Database:RecreateIfNotMigrated"), app.Logger);
-    if (!app.Environment.IsProduction())
+    if (!app.Environment.IsProduction() || app.Configuration.GetValue<bool>("Database:Seed"))
         await DbInitializer.SeedAsync(db, app.Logger);
+}
+if (migrateOnly)
+{
+    app.Logger.LogInformation("Database migrated (MigrateOnly mode), exiting");
+    return;
 }
 
 if (app.Environment.IsDevelopment())

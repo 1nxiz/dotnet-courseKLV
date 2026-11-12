@@ -1,0 +1,13 @@
+# kubectl apply -k deploy/k8s   (Secrets створюються ОКРЕМО командами kubectl — див. README.md)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - sqlserver.yaml
+  - books-api-configmap.yaml
+  - books-api-migrate-job.yaml
+  - books-api-deployment.yaml
+  - books-api-service.yaml
+  - gateway-configmap.yaml
+  - gateway-deployment.yaml
+  - gateway-service.yaml

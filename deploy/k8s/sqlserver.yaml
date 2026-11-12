@@ -1,0 +1,52 @@
+# SQL Server для books-api у кластері (залежність каталогу). Пароль SA — із Secret sql-secrets (kubectl create secret ...).
+# Навчальний варіант: emptyDir — дані живуть, доки живе под; у production — StatefulSet + PersistentVolumeClaim.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sql
+  namespace: library
+  labels: { app: sql }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sql }
+  template:
+    metadata:
+      labels: { app: sql }
+    spec:
+      containers:
+        - name: sql
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1433
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: sql-secrets, key: MSSQL_SA_PASSWORD }
+          resources:
+            requests: { memory: "1Gi", cpu: "250m" }
+            limits: { memory: "2Gi" }
+          readinessProbe:
+            tcpSocket: { port: 1433 }
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/opt/mssql
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sql                 # DNS-ім'я всередині namespace: sql
+  namespace: library
+spec:
+  type: ClusterIP
+  selector: { app: sql }
+  ports:
+    - port: 1433
+      targetPort: 1433

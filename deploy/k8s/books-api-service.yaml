@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: books-api           # DNS-ім'я: http://books-api (у namespace library) — таке ж, як ресурс в Aspire
+  namespace: library
+spec:
+  type: ClusterIP           # доступний лише всередині кластера
+  selector:
+    app: books-api          # трафік — на поди з цим лейблом (і лише Ready)
+  ports:
+    - name: http
+      port: 80              # порт сервісу
+      targetPort: http      # порт контейнера 8080
+    - name: grpc
+      port: 81
+      targetPort: grpc

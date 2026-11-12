@@ -1,0 +1,14 @@
+# Відкрита конфігурація каталогу (books-api ≈ catalog-api методички). Секрети (рядок підключення, ключ JWT) — у Secret books-secrets.
+# Подвійне підкреслення = двокрапка в конфігурації .NET: Kestrel__Endpoints__http__Url -> Kestrel:Endpoints:http:Url
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: books-config
+  namespace: library
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Kestrel__Endpoints__http__Url: "http://+:8080"        # REST + health probes
+  Kestrel__Endpoints__grpc__Url: "http://+:8081"        # gRPC (HTTP/2) для Aggregator
+  Database__MigrateOnStartup: "false"                   # міграції робить Job books-db-migrate, не репліки
+  Database__Seed: "true"                                # демонстраційні дані каталогу
+  Serilog__MinimumLevel__Default: "Information"

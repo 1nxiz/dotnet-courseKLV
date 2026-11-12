@@ -1,0 +1,16 @@
+# Адреси сервісів для service discovery Gateway — у тому самому форматі, що передавав Aspire (Лаб. 05):
+# services__books-api__http__0 -> services:books-api:http:0. Код Gateway не змінюється.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: library
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_HTTP_PORTS: "8080"
+  services__books-api__http__0: "http://books-api"       # DNS-ім'я Service
+  services__loans-api__http__0: "http://loans-api"       # (ручні маніфести — лише books-api; решту розгортає Aspirate)
+  services__feedback-api__http__0: "http://feedback-api"
+  services__aggregator__http__0: "http://aggregator"
+  services__auth-api__http__0: "http://auth-api"
+  services__payments-api__http__0: "http://payments-api"
