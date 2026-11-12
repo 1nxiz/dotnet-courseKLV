@@ -18,8 +18,8 @@ param(
     [string] $SqlServer        = "localhost,1433",
     [string] $SaPassword       = "Library_Pass123",
     [string] $MongoUri         = "mongodb://localhost:27017",
-    [string] $LoansAppPassword = "Loans_App#2026",
-    [string] $BooksAppPassword = "Books_App#2026"
+    [string] $LoansAppPassword = "LoansSvc#2026pw",
+    [string] $BooksAppPassword = "BooksSvc#2026pw"
 )
 $ErrorActionPreference = "Stop"
 $DbDir = $PSScriptRoot

@@ -15,8 +15,8 @@
 set -euo pipefail
 DB_DIR="$(cd "$(dirname "$0")" && pwd)"
 SA_PASSWORD="${SA_PASSWORD:-Library_Pass123}"
-LOANS_APP_PASSWORD="${LOANS_APP_PASSWORD:-Loans_App#2026}"
-BOOKS_APP_PASSWORD="${BOOKS_APP_PASSWORD:-Books_App#2026}"
+LOANS_APP_PASSWORD="${LOANS_APP_PASSWORD:-LoansSvc#2026pw}"
+BOOKS_APP_PASSWORD="${BOOKS_APP_PASSWORD:-BooksSvc#2026pw}"
 
 if [ -n "${SQL_CONTAINER:-}" ]; then
   docker exec "$SQL_CONTAINER" mkdir -p /tmp/library-db
