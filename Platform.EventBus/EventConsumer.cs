@@ -192,10 +192,18 @@ public sealed class EventConsumer : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken);
-        if (_channel is not null)
+        if (_channel is null) return;
+        try
         {
-            await _channel.CloseAsync(cancellationToken);              // незавершені повідомлення повернуться в чергу
+            if (_channel.IsOpen)
+                await _channel.CloseAsync(cancellationToken);          // непідтверджені повідомлення повернуться в чергу
             await _channel.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or RabbitMQ.Client.Exceptions.AlreadyClosedException
+                                       or OperationCanceledException)
+        {
+            // з'єднання вже закрите під час зупинки хоста — каналу нічого закривати
+            _logger.LogDebug(ex, "Channel of {Queue} was already closed", Queue);
         }
     }
 }
