@@ -50,12 +50,11 @@ public class BookGenreRepository : IBookGenreRepository
 
     public BookGenreRepository(AppDbContext context) => _context = context;
 
-    public async Task<IReadOnlyList<Book>> GetRecentlyAddedAsync(string genreSlug, DateTime since, CancellationToken ct = default)
+    public async Task<IReadOnlyList<RecentlyAddedBook>> GetRecentlyAddedAsync(string genreSlug, DateTime since, CancellationToken ct = default)
         => await _context.BookGenres
-            .Where(bg => bg.Genre.Slug == genreSlug && bg.AddedAt >= since)
+            .Where(bg => bg.Genre.Slug == genreSlug && bg.AddedAt >= since)      // фільтр за ВЛАСНИМ полем M:N
             .OrderByDescending(bg => bg.AddedAt)
-            .Select(bg => bg.Book)
-            .Include(b => b.Author)
+            .Select(bg => new RecentlyAddedBook(bg.Book, bg.Book.Author!.FullName, bg.AddedAt))
             .AsNoTracking()
             .ToListAsync(ct);
 

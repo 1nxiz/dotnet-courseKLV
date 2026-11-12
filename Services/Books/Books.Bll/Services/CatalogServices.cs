@@ -29,7 +29,9 @@ public class GenreService : IGenreService
     }
 
     public async Task<IReadOnlyList<BookDto>> GetRecentlyAddedAsync(string slug, DateTime since, CancellationToken ct)
-        => _mapper.Map<List<BookDto>>(await _uow.BookGenres.GetRecentlyAddedAsync(slug, since, ct));
+        => (await _uow.BookGenres.GetRecentlyAddedAsync(slug, since, ct))
+            .Select(x => _mapper.Map<BookDto>(x.Book) with { AuthorName = x.AuthorName })
+            .ToList();
 
     public async Task<IReadOnlyList<GenreStatisticsDto>> GetStatisticsAsync(CancellationToken ct)
         => (await _uow.BookGenres.GetGenreStatisticsAsync(ct))

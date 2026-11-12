@@ -36,9 +36,12 @@ public interface IGenreRepository : IGenericRepository<Genre>
 /// <summary>Зв'язки книга-жанр: LINQ to Entities через проміжну сутність M:N та її власне поле AddedAt.</summary>
 public interface IBookGenreRepository
 {
-    Task<IReadOnlyList<Book>> GetRecentlyAddedAsync(string genreSlug, DateTime since, CancellationToken ct = default);
+    Task<IReadOnlyList<RecentlyAddedBook>> GetRecentlyAddedAsync(string genreSlug, DateTime since, CancellationToken ct = default);
     Task<IReadOnlyList<(Genre Genre, int BooksCount)>> GetGenreStatisticsAsync(CancellationToken ct = default);
 }
+
+/// <summary>Книга, нещодавно додана в жанр: сутність + ім'я автора + власне поле проміжної сутності AddedAt.</summary>
+public sealed record RecentlyAddedBook(Book Book, string? AuthorName, DateTime AddedAt);
 
 public interface IAuthorRepository : IGenericRepository<Author>
 {
