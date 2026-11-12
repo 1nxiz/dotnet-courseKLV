@@ -341,3 +341,72 @@ curl http://localhost:5000/api/books/3      # нова ціна (кеш інва
 grpcurl -plaintext localhost:5112 list      # порти grpc: loans 5111, books 5112, feedback 5113 (поза Aspire)
 grpcurl -plaintext -d "{\"id\":999}" localhost:5112 library.books.v1.BooksCatalog/GetBook   # NotFound
 ```
+
+## Лаб. 07 — стійкість, бізнес-метрики, health checks
+
+### Політики стійкості клієнтів Aggregator (`Platform.Aggregator/Resilience/`)
+ServiceDefaults додає Standard Resilience Handler до **всіх** HttpClient (`ConfigureHttpClientDefaults`). Клієнти
+агрегатора мають власні параметри, тому для кожного спершу `RemoveAllResilienceHandlers()`, потім — один свій
+обробник (без нашарування). Порядок стратегій: rate limiter → total timeout → retry → circuit breaker → attempt timeout.
+
+| Клієнт | Критичність | HTTP retry | gRPC retry (ServiceConfig) | Attempt / Total timeout | Circuit breaker (ratio / min / sampling / break) | Обґрунтування |
+|---|---|---|---|---|---|---|
+| loans-api | критичний | 3, від 300 мс, exp + jitter | 4 спроби, Unavailable, ResourceExhausted | 3 с / 15 с | 0.3 / 10 / 30 с / 15 с | без видачі картку не зібрати: варто почекати й повторити; чутливий breaker швидко зупиняє лавину запитів до зламаного сервісу |
+| books-api | критичний | 4, від 300 мс | 4 спроби | 3 с / 20 с | 0.3 / 10 / 30 с / 15 с | дані каталогу — суть картки; читання ідемпотентні, повтори безпечні |
+| feedback-api | некритичний | 1, від 200 мс | 2 спроби | 2 с / 5 с | 0.7 / 10 / 30 с / 30 с | відгуки — «прикраса»: краще за 2–5 с повернути часткову відповідь з `warnings`, ніж чекати; толерантний breaker, довша пауза |
+
+* Retry: експоненційна затримка з jitter (проти thundering herd), `DisableForUnsafeHttpMethods()` — POST/PUT/DELETE не повторюються.
+* gRPC: статуси передаються в trailers (HTTP 200), тому HTTP-retry їх не бачить і не може безпечно повторити gRPC-запит.
+  Для gRPC-клієнтів повтори робить `ServiceConfig.RetryPolicy` за gRPC-статусами, а HTTP-рівень лишає circuit breaker і таймаути
+  (HTTP-retry вимкнено, щоб повтори не множилися). Deadline кожного виклику — 5 с.
+* Переходи breaker-а логуються (`Circuit to ... OPENED / HALF-OPEN / CLOSED`), повтори — `Retry N to ...`; метрика
+  `resilience.polly.strategy.events` (Meter `Polly`, додано в ServiceDefaults) з тегом `event.name` = OnRetry / OnCircuitOpened.
+* Redis: збій кешу перехоплюється й логуються, L2 пропускається 30 с, дані читаються з БД (сервіси), агрегатор працює без кешу.
+
+### Бізнес-метрики (`<Сервіс>.Api/Metrics/`, IMeterFactory, singleton)
+| Meter | Інструмент | Тип | Теги |
+|---|---|---|---|
+| Loans.Api | `loans.created` | Counter | `delivery.type` |
+| Loans.Api | `loans.status_changed` | Counter | `loan.status` |
+| Loans.Api | `loans.payments.amount` (UAH) | Counter<double> | `payment.method` |
+| Loans.Api | `loans.operation.duration` (ms) | Histogram | `operation`, `outcome` (success / failure) |
+| Loans.Api | `loans.active` | ObservableGauge (знімок з БД раз на 30 с) | `loan.status` |
+| Books.Api | `books.created`, `books.published` | Counter | — |
+| Books.Api | `books.price_changed` | Counter | `price.direction` (up / down) |
+| Books.Api | `books.copies.changed` | Counter | `copies.operation` (add / write_off) |
+| Books.Api | `books.operation.duration` (ms) | Histogram | `operation`, `outcome` |
+| Books.Api / Feedback.WebApi | `books.cache.entries`, `feedback.cache.entries` | ObservableGauge | — |
+| Feedback.WebApi | `feedback.reviews.created` | Counter | `review.rating` (1–5) |
+| Feedback.WebApi | `feedback.comments.added`, `feedback.discussions.started`, `feedback.messages.posted` | Counter | — |
+| Feedback.WebApi | `feedback.request.duration` (ms) | Histogram (MediatR `MetricsBehavior`) | `request`, `outcome` |
+| Platform.Aggregator | `aggregator.request.duration`, `aggregator.partial_responses` | Histogram / Counter | `transport` |
+
+Тривалість пишеться для **всіх** виконань (і невдалих). Теги лише з малою кількістю значень — без id читачів, видач, відгуків.
+Нормальні діапазони: `loans.operation.duration` p95 < 200 мс (confirm — транзакція, до 500 мс); частка cache hit (memory+redis) > 70 %;
+`aggregator.partial_responses` ≈ 0.
+
+### Health checks
+| Endpoint | Що перевіряє | Хто використовує |
+|---|---|---|
+| `/health/live`, `/alive` | лише `self` (тег `live`) — процес живий, < 100 мс | liveness-проба (перезапуск) |
+| `/health/ready` | тег `ready`: БД, Redis, L1-кеш, gRPC-залежності; JSON з деталями | readiness-проба (балансування) |
+| `/health` | усі перевірки, JSON | Aspire `WithHttpHealthCheck("/health")` → статус ресурсу, `WaitFor` чекає Healthy |
+| `grpc.health.v1.Health/Check` | ті самі readiness-перевірки | Aggregator |
+
+* Loans / Books: `AddSqlServer` (`loans-db`, `books-db`; SELECT 1; 5 с; теги database, sql, ready) — `HealthChecks/`.
+* Feedback: `MongoDbHealthCheck` (`feedback-db`; ping; 5 с; database, mongodb, ready).
+* Redis: `redis-cache`, PING, 3 с, **Degraded** (кеш необов'язковий). Вбудовану перевірку Aspire-інтеграції вимкнено
+  (`DisableHealthChecks = true`), щоб вона не робила сервіс Unhealthy.
+* Aggregator (`HealthChecks/GrpcDependencyHealthCheck.cs`): `Health.HealthClient` кожного сервісу, deadline 2 с;
+  loans-api, books-api — Unhealthy, feedback-api — Degraded.
+* Endpoints доступні в усіх середовищах (потрібні Kubernetes, Лаб. 10).
+
+### Перевірка
+```bash
+curl http://localhost:5101/health/ready          # loans: loans-db, redis-cache, memory-cache
+docker stop <redis-контейнер>                     # /health/ready -> "Degraded" (200), сервіс відповідає з БД
+docker stop <sql-контейнер>                       # /health/live -> 200, /health/ready -> 503
+for i in $(seq 1 15); do curl -s "http://localhost:5000/api/aggregator/loans/1/full?transport=http&cache=false" > /dev/null; done
+# при зупиненому feedback-api: логи "Retry 1 to feedback-api", потім "Circuit to feedback-api OPENED"
+```
+У Dashboard → Metrics: `resilience.polly.strategy.events` (фільтр `event.name`), `loans.created`, `loans.operation.duration`.

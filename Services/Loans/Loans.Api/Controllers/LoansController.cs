@@ -1,6 +1,8 @@
+using Loans.Api.Metrics;
 using Loans.Bll.Dtos;
 using Loans.Bll.Services;
 using Loans.Domain.Common;
+using Loans.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Loans.Api.Controllers;
@@ -15,8 +17,13 @@ namespace Loans.Api.Controllers;
 public class LoansController : ControllerBase
 {
     private readonly ILoanService _loans;
+    private readonly LoansMetrics _metrics;
 
-    public LoansController(ILoanService loans) => _loans = loans;
+    public LoansController(ILoanService loans, LoansMetrics metrics)
+    {
+        _loans = loans;
+        _metrics = metrics;
+    }
 
     private string CurrentUser => User.Identity?.Name ?? "anonymous";
 
@@ -40,7 +47,8 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LoanDto>> Create(CreateLoanDto input, CancellationToken ct)
     {
-        var created = await _loans.CreateAsync(input, CurrentUser, ct);
+        var created = await _metrics.MeasureAsync("create", () => _loans.CreateAsync(input, CurrentUser, ct));
+        _metrics.LoanCreated(input.DeliveryType);                // лічильник — одразу після успішної операції
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
@@ -60,7 +68,8 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Confirm(long id, CancellationToken ct)
     {
-        await _loans.ConfirmAsync(id, CurrentUser, ct);
+        await _metrics.MeasureAsync("confirm", () => _loans.ConfirmAsync(id, CurrentUser, ct));
+        _metrics.StatusChanged(LoanStatus.Reserved);
         return NoContent();
     }
 
@@ -72,7 +81,12 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PaymentDto>> Pay(long id, PayLoanDto input,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, CancellationToken ct)
-        => Ok(await _loans.PayAsync(id, input, idempotencyKey, CurrentUser, ct));
+    {
+        var payment = await _metrics.MeasureAsync("pay", () => _loans.PayAsync(id, input, idempotencyKey, CurrentUser, ct));
+        _metrics.PaymentRegistered(payment.Method, payment.Amount);
+        _metrics.StatusChanged(LoanStatus.Paid);
+        return Ok(payment);
+    }
 
     /// <summary>Платежі видачі.</summary>
     [HttpGet("{id:long}/payments")]
@@ -88,7 +102,8 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Issue(long id, CancellationToken ct)
     {
-        await _loans.IssueAsync(id, CurrentUser, ct);
+        await _metrics.MeasureAsync("issue", () => _loans.IssueAsync(id, CurrentUser, ct));
+        _metrics.StatusChanged(LoanStatus.Issued);
         return NoContent();
     }
 
@@ -99,7 +114,8 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Return(long id, CancellationToken ct)
     {
-        await _loans.ReturnAsync(id, CurrentUser, ct);
+        await _metrics.MeasureAsync("return", () => _loans.ReturnAsync(id, CurrentUser, ct));
+        _metrics.StatusChanged(LoanStatus.Returned);
         return NoContent();
     }
 
@@ -110,7 +126,8 @@ public class LoansController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Cancel(long id, CancellationToken ct)
     {
-        await _loans.CancelAsync(id, CurrentUser, ct);
+        await _metrics.MeasureAsync("cancel", () => _loans.CancelAsync(id, CurrentUser, ct));
+        _metrics.StatusChanged(LoanStatus.Cancelled);
         return NoContent();
     }
 

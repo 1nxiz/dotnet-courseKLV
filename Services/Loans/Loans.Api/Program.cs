@@ -1,6 +1,8 @@
 using System.Reflection;
 using Loans.Api.ErrorHandling;
 using Loans.Api.Grpc;
+using Loans.Api.HealthChecks;
+using Loans.Api.Metrics;
 using Loans.Bll;
 using Loans.Dal;
 using Loans.Dal.Initialization;
@@ -27,7 +29,8 @@ builder.Services.AddMemoryCache(options =>
     options.TrackStatistics = true;
 });
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
-    builder.AddRedisDistributedCache("redis");           // ConnectionStrings:redis передає AppHost
+    builder.AddRedisDistributedCache("redis",            // ConnectionStrings:redis передає AppHost
+        settings => settings.DisableHealthChecks = true);  // власна перевірка зі статусом Degraded — нижче
 else
     builder.Services.AddDistributedMemoryCache();        // локальний запуск без Redis
 
@@ -38,6 +41,12 @@ builder.Services.AddGrpc(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 builder.Services.AddGrpcReflection();
+
+// ---------- Лаб. 07: бізнес-метрики (Meter "Loans.Api") і health checks залежностей ----------
+builder.Services.AddSingleton<LoansStatsSnapshot>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LoansStatsSnapshot>());
+builder.Services.AddSingleton<LoansMetrics>();
+builder.Services.AddLoansHealthChecks(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -76,6 +85,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapGrpcService<LoansGrpcService>();
+app.MapGrpcHealthChecksService();                        // grpc.health.v1 — для Aggregator
 if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();

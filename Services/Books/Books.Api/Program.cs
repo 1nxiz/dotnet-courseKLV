@@ -1,6 +1,8 @@
 using System.Reflection;
 using Books.Api.ErrorHandling;
 using Books.Api.Grpc;
+using Books.Api.HealthChecks;
+using Books.Api.Metrics;
 using Books.Bll;
 using Books.Dal;
 using Books.Dal.Seeding;
@@ -28,7 +30,8 @@ builder.Services.AddMemoryCache(options =>
 // L2: IDistributedCache поверх Redis через Aspire-інтеграцію (рядок ConnectionStrings:redis передає AppHost;
 // вона ж додає health check, повторні з'єднання й трасування Redis). Без Redis — розподілений кеш у пам'яті.
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
-    builder.AddRedisDistributedCache("redis");
+    builder.AddRedisDistributedCache("redis",
+        settings => settings.DisableHealthChecks = true);   // власна перевірка Redis зі статусом Degraded (Лаб. 07)
 else
     builder.Services.AddDistributedMemoryCache();
 
@@ -39,6 +42,10 @@ builder.Services.AddGrpc(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 builder.Services.AddGrpcReflection();                    // опис сервісів для grpcurl / Postman
+
+// ---------- Лаб. 07: бізнес-метрики (Meter "Books.Api") і health checks ----------
+builder.Services.AddSingleton<BooksMetrics>();
+builder.Services.AddBooksHealthChecks(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -79,6 +86,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapGrpcService<BooksGrpcService>();
+app.MapGrpcHealthChecksService();
 if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();

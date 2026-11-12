@@ -3,6 +3,9 @@ using Feedback.Application;
 using Feedback.Infrastructure;
 using Feedback.WebApi.ErrorHandling;
 using Feedback.WebApi.Grpc;
+using Feedback.WebApi.HealthChecks;
+using Feedback.WebApi.Metrics;
+using MediatR;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,7 +26,8 @@ builder.Services.AddMemoryCache(options =>
     options.TrackStatistics = true;
 });
 if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("redis")))
-    builder.AddRedisDistributedCache("redis");
+    builder.AddRedisDistributedCache("redis",
+        settings => settings.DisableHealthChecks = true);   // власна перевірка Redis зі статусом Degraded (Лаб. 07)
 else
     builder.Services.AddDistributedMemoryCache();
 
@@ -34,6 +38,11 @@ builder.Services.AddGrpc(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 builder.Services.AddGrpcReflection();
+
+// Лаб. 07: бізнес-метрики (Meter "Feedback.WebApi") через MediatR behavior і health checks MongoDB / Redis
+builder.Services.AddSingleton<FeedbackMetrics>();
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(MetricsBehavior<,>));
+builder.Services.AddFeedbackHealthChecks(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -63,6 +72,7 @@ if (!app.Environment.IsProduction())
 
 app.MapControllers();
 app.MapGrpcService<FeedbackGrpcService>();
+app.MapGrpcHealthChecksService();
 if (app.Environment.IsDevelopment()) app.MapGrpcReflectionService();
 app.MapDefaultEndpoints();
 app.Run();

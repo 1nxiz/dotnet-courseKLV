@@ -1,3 +1,4 @@
+using Books.Api.Metrics;
 using Books.Bll.Dtos;
 using Books.Bll.Services;
 using FluentValidation;
@@ -15,8 +16,13 @@ namespace Books.Api.Controllers;
 public class BooksController : ControllerBase
 {
     private readonly IBookService _books;
+    private readonly BooksMetrics _metrics;
 
-    public BooksController(IBookService books) => _books = books;
+    public BooksController(IBookService books, BooksMetrics metrics)
+    {
+        _books = books;
+        _metrics = metrics;
+    }
 
     /// <summary>Список з пагінацією, фільтрацією та сортуванням (виконуються в SQL).</summary>
     /// <remarks>Метадані пагінації — у тілі відповіді й у заголовках X-Pagination-TotalCount / -Page / -PageSize / -TotalPages.</remarks>
@@ -57,7 +63,8 @@ public class BooksController : ControllerBase
         if (!validation.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
-        var created = await _books.CreateAsync(input, ct);
+        var created = await _metrics.MeasureAsync("create", () => _books.CreateAsync(input, ct));
+        _metrics.BookCreated();
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
@@ -86,7 +93,10 @@ public class BooksController : ControllerBase
         var validation = await validator.ValidateAsync(input, ct);
         if (!validation.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
-        return Ok(await _books.ChangePriceAsync(id, input.Price, ct));
+        var before = await _books.GetByIdAsync(id, ct);                   // з кешу — для тегу price.direction
+        var updated = await _metrics.MeasureAsync("change_price", () => _books.ChangePriceAsync(id, input.Price, ct));
+        _metrics.PriceChanged(before.Price, updated.Price);
+        return Ok(updated);
     }
 
     /// <summary>Надходження примірників у фонд.</summary>
@@ -100,7 +110,9 @@ public class BooksController : ControllerBase
         var validation = await validator.ValidateAsync(input, ct);
         if (!validation.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
-        return Ok(await _books.AddCopiesAsync(id, input.Quantity, ct));
+        var book = await _metrics.MeasureAsync("add_copies", () => _books.AddCopiesAsync(id, input.Quantity, ct));
+        _metrics.CopiesChanged("add", input.Quantity);
+        return Ok(book);
     }
 
     /// <summary>Списання примірників. Більше, ніж є, -> 409 (правило сутності).</summary>
@@ -115,7 +127,9 @@ public class BooksController : ControllerBase
         var validation = await validator.ValidateAsync(input, ct);
         if (!validation.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
-        return Ok(await _books.WriteOffCopiesAsync(id, input.Quantity, ct));
+        var book = await _metrics.MeasureAsync("write_off", () => _books.WriteOffCopiesAsync(id, input.Quantity, ct));
+        _metrics.CopiesChanged("write_off", input.Quantity);
+        return Ok(book);
     }
 
     /// <summary>Опублікувати книгу (стає видимою читачам).</summary>
@@ -124,7 +138,11 @@ public class BooksController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<BookDto>> Publish(int id, CancellationToken ct)
-        => Ok(await _books.PublishAsync(id, ct));
+    {
+        var book = await _metrics.MeasureAsync("publish", () => _books.PublishAsync(id, ct));
+        _metrics.Published();
+        return Ok(book);
+    }
 
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

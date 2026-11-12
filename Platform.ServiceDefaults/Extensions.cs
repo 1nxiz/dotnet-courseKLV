@@ -23,6 +23,8 @@ public static class Extensions
 {
     private const string HealthEndpointPath = "/health";
     private const string AlivenessEndpointPath = "/alive";
+    private const string LivenessEndpointPath = "/health/live";
+    private const string ReadinessEndpointPath = "/health/ready";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
@@ -97,14 +99,16 @@ public static class Extensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddMeter(PlatformTelemetry.Meters))
+                .AddMeter(PlatformTelemetry.Meters)
+                .AddMeter("Polly"))                                                  // resilience.polly.* (Лаб. 07)
             .WithTracing(tracing => tracing
                 .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(samplingRatio)))   // 100 % у Development
                 .AddSource(builder.Environment.ApplicationName)                    // власні spans сервісу (3.3)
                 .AddSource(PlatformTelemetry.ActivitySources)
                 .AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources")     // MongoDB
                 .AddAspNetCoreInstrumentation(o => o.Filter = ctx =>
-                    !ctx.Request.Path.StartsWithSegments(HealthEndpointPath) && !ctx.Request.Path.StartsWithSegments(AlivenessEndpointPath))
+                    !ctx.Request.Path.StartsWithSegments(HealthEndpointPath) && !ctx.Request.Path.StartsWithSegments(AlivenessEndpointPath)
+                    && !ctx.Request.Path.StartsWithSegments("/grpc.health.v1.Health"))
                 .AddHttpClientInstrumentation()
                 .AddSqlClientInstrumentation());                                   // Dapper та EF Core
 
@@ -121,14 +125,30 @@ public static class Extensions
         return builder;
     }
 
-    /// <summary>CorrelationId-middleware + /health і /alive (у Development).</summary>
+    /// <summary>
+    /// Health endpoints (Лаб. 07), у всіх середовищах — ними користуються Aspire (WithHttpHealthCheck) і Kubernetes (Лаб. 10):
+    /// <list type="bullet">
+    /// <item>/health/live (і /alive) — liveness: лише перевірки з тегом "live" (процес живий), без зовнішніх залежностей;
+    /// збій -> перезапуск процесу;</item>
+    /// <item>/health/ready — readiness: перевірки з тегом "ready" (БД, Redis, gRPC-залежності); збій -> виключення з балансування;</item>
+    /// <item>/health — усі перевірки (стан ресурсу в Aspire Dashboard).</item>
+    /// </list>
+    /// Відповідь — JSON зі статусом і деталями кожної перевірки. Degraded (наприклад, Redis) відповідає 200.
+    /// </summary>
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        if (app.Environment.IsDevelopment())
+        app.MapHealthChecks(HealthEndpointPath, new HealthCheckOptions { ResponseWriter = HealthJsonWriter.WriteAsync });
+        app.MapHealthChecks(LivenessEndpointPath, new HealthCheckOptions
         {
-            app.MapHealthChecks(HealthEndpointPath);
-            app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions { Predicate = r => r.Tags.Contains("live") });
-        }
+            Predicate = r => r.Tags.Contains("live"),
+            ResponseWriter = HealthJsonWriter.WriteAsync
+        });
+        app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions { Predicate = r => r.Tags.Contains("live") });
+        app.MapHealthChecks(ReadinessEndpointPath, new HealthCheckOptions
+        {
+            Predicate = r => r.Tags.Contains("ready"),
+            ResponseWriter = HealthJsonWriter.WriteAsync
+        });
         return app;
     }
 
