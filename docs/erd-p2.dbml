@@ -1,0 +1,61 @@
+// Проєкт №2 — BooksDb. Вставте у https://dbdiagram.io/d для інтерактивної ERD.
+Project BooksDb { database_type: 'SQLServer' }
+
+Table Authors {
+  Id int [pk, increment]
+  FullName nvarchar(200) [not null]
+  Country nvarchar(100)
+  BirthYear smallint [note: 'CHECK 1000..2100']
+  Indexes { FullName [name: 'IX_Authors_FullName'] }
+}
+
+Table Genres {
+  Id int [pk, note: 'fixed ids, seeded with HasData']
+  Name nvarchar(100) [not null, unique]
+  Slug nvarchar(100) [not null, unique]
+}
+
+Table Books {
+  Id int [pk, increment]
+  Title nvarchar(300) [not null]
+  Isbn nvarchar(20) [not null, unique]
+  Price decimal(18,2) [not null, note: 'CHECK > 0']
+  TotalCopies int [not null, default: 0, note: 'CHECK >= 0']
+  PublishedYear smallint
+  IsPublished bit [not null, default: 0]
+  AuthorId int [not null, ref: > Authors.Id]
+  CreatedAt datetime2 [not null, default: `SYSUTCDATETIME()`]
+  UpdatedAt datetime2
+  RowVersion rowversion
+  Indexes {
+    Title [name: 'IX_Books_Title']
+    Price [name: 'IX_Books_Price']
+    AuthorId [name: 'IX_Books_AuthorId']
+  }
+}
+
+Table BookDetails {
+  BookId int [pk, ref: - Books.Id, note: '1:1, cascade']
+  Description nvarchar(4000) [not null]
+  Publisher nvarchar(200)
+  Pages int
+  Language nvarchar(10) [not null, default: 'uk']
+}
+
+Table BookImages {
+  Id int [pk, increment]
+  BookId int [not null, ref: > Books.Id]
+  Url nvarchar(500) [not null]
+  SortOrder int [not null, default: 0]
+  Indexes { (BookId, SortOrder) [unique] }
+}
+
+Table BookGenres {
+  BookId int [not null, ref: > Books.Id]
+  GenreId int [not null, ref: > Genres.Id]
+  AddedAt datetime2 [not null, default: `SYSUTCDATETIME()`, note: 'own field of M:N']
+  Indexes {
+    (BookId, GenreId) [pk]
+    (GenreId, AddedAt) [name: 'IX_BookGenres_GenreId_AddedAt']
+  }
+}

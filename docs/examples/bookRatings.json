@@ -1,0 +1,28 @@
+[
+  {
+    "_id": {
+      "$numberLong": "4"
+    },
+    "bookTitle": "Clean Architecture",
+    "ratingsCount": 2,
+    "average": 4.5,
+    "distribution": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 1,
+      "5": 1
+    },
+    "topReviewIds": [
+      {
+        "$oid": "66a000000000000000000001"
+      },
+      {
+        "$oid": "66a000000000000000000002"
+      }
+    ],
+    "updatedAt": {
+      "$date": "2026-11-12T10:00:00Z"
+    }
+  }
+]

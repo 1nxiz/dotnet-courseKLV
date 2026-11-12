@@ -1,0 +1,87 @@
+// Проєкт №1 — LoansDb. Вставте у https://dbdiagram.io/d для інтерактивної ERD.
+Project LoansDb { database_type: 'SQLServer' }
+
+Table Readers {
+  Id bigint [pk, increment]
+  Email nvarchar(256) [not null, note: 'unique among active (IsDeleted = 0)']
+  FullName nvarchar(200) [not null]
+  Phone nvarchar(30)
+  CardNumber nvarchar(20) [not null, unique]
+  CreatedAt datetime2 [not null, default: `SYSUTCDATETIME()`]
+  CreatedBy nvarchar(100)
+  UpdatedAt datetime2
+  UpdatedBy nvarchar(100)
+  IsDeleted bit [not null, default: 0]
+  RowVersion rowversion
+}
+
+Table Books {
+  Id bigint [pk, note: 'same Id as BooksDb.Books.Id, no FK between databases']
+  Title nvarchar(300) [not null, note: 'copy, updated by catalog events']
+  Isbn nvarchar(20)
+  Price decimal(18,2) [not null, note: 'CHECK > 0; copy']
+  AvailableCopies int [not null, default: 0, note: 'CHECK >= 0; owned by Loans']
+  SourceUpdatedAt datetime2
+  IsDeleted bit [not null, default: 0]
+  RowVersion rowversion
+  Indexes { Title [name: 'IX_Books_Title'] }
+}
+
+Table Loans {
+  Id bigint [pk, increment]
+  Number nvarchar(20) [not null, unique, default: `'LN-' + NEXT VALUE FOR LoanNumberSeq`]
+  ReaderId bigint [not null, ref: > Readers.Id]
+  Status nvarchar(30) [not null, default: 'Submitted', note: 'CHECK IN (Submitted, AwaitingValidation, Reserved, Paid, Issued, Returned, Cancelled)']
+  LoanDate datetime2 [not null, default: `SYSUTCDATETIME()`]
+  DueDate date
+  CreatedAt datetime2 [not null]
+  CreatedBy nvarchar(100)
+  UpdatedAt datetime2
+  UpdatedBy nvarchar(100)
+  IsDeleted bit [not null, default: 0]
+  RowVersion rowversion
+  Indexes {
+    (ReaderId, Status, LoanDate) [name: 'IX_Loans_ReaderId_Status', note: 'filtered IsDeleted = 0']
+    (Status, LoanDate) [name: 'IX_Loans_Status_LoanDate']
+    DueDate [name: 'IX_Loans_Overdue', note: 'filtered Status = Issued']
+  }
+}
+
+Table LoanDetails {
+  LoanId bigint [pk, ref: - Loans.Id, note: '1:1, ON DELETE CASCADE']
+  DeliveryType nvarchar(20) [not null, default: 'Pickup']
+  DeliveryAddress nvarchar(400)
+  Comment nvarchar(1000)
+}
+
+Table LoanItems {
+  LoanId bigint [not null, ref: > Loans.Id]
+  BookId bigint [not null, ref: > Books.Id]
+  BookTitle nvarchar(300) [not null, note: 'SNAPSHOT']
+  UnitPrice decimal(18,2) [not null, note: 'SNAPSHOT, CHECK > 0']
+  Discount decimal(18,2) [not null, default: 0]
+  Quantity int [not null, note: 'CHECK 1..50']
+  Indexes {
+    (LoanId, BookId) [pk]
+    BookId [name: 'IX_LoanItems_BookId']
+  }
+}
+
+Table LoanStatusHistory {
+  Id bigint [pk, increment]
+  LoanId bigint [not null, ref: > Loans.Id]
+  FromStatus nvarchar(30)
+  ToStatus nvarchar(30) [not null]
+  ChangedAt datetime2 [not null]
+  ChangedBy nvarchar(100)
+}
+
+Table Payments {
+  Id bigint [pk, increment]
+  LoanId bigint [not null, ref: > Loans.Id]
+  Amount decimal(18,2) [not null]
+  Method nvarchar(20) [not null]
+  ExternalReference nvarchar(100) [note: 'unique filtered (NOT NULL)']
+  PaidAt datetime2 [not null]
+  CreatedBy nvarchar(100)
+}
