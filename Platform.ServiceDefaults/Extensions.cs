@@ -68,6 +68,9 @@ public static class Extensions
                .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
                .MinimumLevel.Override("Polly", LogEventLevel.Information)
                .ReadFrom.Configuration(builder.Configuration)
+               // AutoMapper 15 без ключа ліцензії працює, але на кожне створення мапера пише Fatal-повідомлення про ключ
+               // (ключ Community-ліцензії задається в AutoMapper:LicenseKey) — не засмічуємо ним журнал
+               .Filter.ByExcluding(Serilog.Filters.Matching.FromSource("LuckyPennySoftware.AutoMapper.License"))
                .Enrich.FromLogContext()
                .Enrich.WithProperty("ServiceName", serviceName)
                .Enrich.WithEnvironmentName()

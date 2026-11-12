@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -48,6 +49,7 @@ public static class PlatformAuthentication
         {
             auth.AddJwtBearer(AuthServiceScheme, o =>
             {
+                o.Events = LoggingEvents(AuthServiceScheme);
                 o.MapInboundClaims = false;                   // claims як у токені: sub, unique_name, role
                 o.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -71,6 +73,7 @@ public static class PlatformAuthentication
             var issuerUri = config["IdentityServer:IssuerUri"];
             auth.AddJwtBearer(IdentityServerScheme, o =>
             {
+                o.Events = LoggingEvents(IdentityServerScheme);
                 o.Authority = authority;                      // /.well-known/openid-configuration -> ключі підпису
                 o.Audience = apiAudience;                     // ApiResource сервісу
                 o.RequireHttpsMetadata = false;               // навчальне середовище — HTTP
@@ -91,6 +94,7 @@ public static class PlatformAuthentication
         {
             auth.AddKeycloakJwtBearer("keycloak", config["Keycloak:Realm"]!, KeycloakScheme, o =>
             {
+                o.Events = LoggingEvents(KeycloakScheme);
                 o.Audience = apiAudience;                     // Resource Server сервісу (audience mapper у Pulumi)
                 o.RequireHttpsMetadata = false;               // Keycloak у розробці — HTTP
                 o.MapInboundClaims = false;
@@ -116,6 +120,18 @@ public static class PlatformAuthentication
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         return services;
     }
+
+    /// <summary>Причина відхилення токена — у структурований лог (Warning), а не лише 401 у відповіді.</summary>
+    private static JwtBearerEvents LoggingEvents(string scheme) => new()
+    {
+        OnAuthenticationFailed = context =>
+        {
+            context.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                .CreateLogger("Platform.Authentication")
+                .LogWarning("JWT rejected by {Scheme} for {Path}: {Reason}", scheme, context.Request.Path, context.Exception.Message);
+            return Task.CompletedTask;
+        }
+    };
 
     private static string SelectScheme(HttpContext context, Dictionary<string, string> issuers, bool keycloak, string fallback)
     {
