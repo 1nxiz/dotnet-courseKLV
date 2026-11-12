@@ -14,7 +14,7 @@ public record BookDetailDto(string Description, string? Publisher, int? Pages, s
 /// <summary>Повна картка книги (eager loading).</summary>
 public record BookCardDto(int Id, string Title, string Isbn, decimal Price, int TotalCopies, short? PublishedYear,
     bool IsPublished, int AuthorId, string? AuthorName, BookDetailDto? Detail,
-    IReadOnlyList<BookImageDto> Images, IReadOnlyList<BookGenreDto> Genres);
+    IReadOnlyList<BookImageDto> Images, IReadOnlyList<BookGenreDto> Genres, int TimesLoaned = 0);
 
 /// <summary>
 /// Створення книги. Прості правила — DataAnnotations (атрибути нижче), складні — CreateBookDtoValidator

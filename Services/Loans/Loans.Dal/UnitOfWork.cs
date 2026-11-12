@@ -29,11 +29,13 @@ public sealed class UnitOfWork : IUnitOfWork
         Readers = new ReaderRepository(_connection, () => _transaction);
         Loans = new LoanRepository(_connection, () => _transaction);
         Books = new BookRepository(_connection, () => _transaction);
+        ProcessedEvents = new ProcessedEventRepository(_connection, () => _transaction);
     }
 
     public IReaderRepository Readers { get; }
     public ILoanRepository Loans { get; }
     public IBookRepository Books { get; }
+    public IProcessedEventRepository ProcessedEvents { get; }
 
     public bool HasActiveTransaction => _transaction is not null;
 

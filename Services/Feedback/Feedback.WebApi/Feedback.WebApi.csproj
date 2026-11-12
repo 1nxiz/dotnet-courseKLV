@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\Platform.EventBus\Platform.EventBus.csproj" />
     <ProjectReference Include="..\Feedback.Application\Feedback.Application.csproj" />
     <ProjectReference Include="..\Feedback.Infrastructure\Feedback.Infrastructure.csproj" />
   </ItemGroup>

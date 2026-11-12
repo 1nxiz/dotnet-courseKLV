@@ -148,6 +148,12 @@ public sealed class IndexCreationService : IHostedService
                     Name = "ix_messages_replyToId",
                     PartialFilterExpression = new BsonDocument("replyToId", new BsonDocument("$type", "objectId"))
                 }));
+
+        // Лаб. 08: журнал оброблених подій; _id = EventId (унікальний сам по собі), записи старші за 30 днів видаляє TTL
+        var processed = _context.Database.GetCollection<BsonDocument>(MongoDbContext.ProcessedEventsCollection);
+        await CreateAsync(processed, ct,
+            new CreateIndexModel<BsonDocument>(Builders<BsonDocument>.IndexKeys.Ascending("processedAt"),
+                new CreateIndexOptions { Name = "ttl_processedEvents_processedAt", ExpireAfter = TimeSpan.FromDays(30) }));
     }
 
     private async Task CreateAsync<T>(IMongoCollection<T> collection, CancellationToken ct, params CreateIndexModel<T>[] models)

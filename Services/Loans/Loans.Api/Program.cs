@@ -3,6 +3,11 @@ using System.Reflection;
 using Loans.Api.ErrorHandling;
 using Loans.Api.Grpc;
 using Loans.Api.HealthChecks;
+using Loans.Api.IntegrationEvents;
+using Loans.Api.IntegrationEvents.Events;
+using Loans.Api.IntegrationEvents.Handlers;
+using Loans.Bll.IntegrationEvents;
+using Platform.EventBus;
 using Loans.Api.Metrics;
 using Loans.Bll;
 using Loans.Dal;
@@ -59,6 +64,23 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<LoansStatsSnapshot
 builder.Services.AddSingleton<LoansMetrics>();
 builder.Services.AddLoansHealthChecks(builder.Configuration);
 
+// ---------- Лаб. 08: подієва взаємодія через RabbitMQ (IConnection — Aspire-інтеграція, RabbitMQ.Client 7.x) ----------
+EventBusBuilder eventBus;
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("messaging")))
+{
+    builder.AddRabbitMQClient("messaging", settings => settings.DisableHealthChecks = true);   // свій check — Degraded
+    eventBus = builder.Services.AddEventBus();
+}
+else
+    eventBus = builder.Services.AddLoggingOnlyEventBus();       // локальний запуск без брокера
+builder.Services.AddScoped<ILoanEventPublisher, LoanEventPublisher>();   // loan.status_changed після Commit (LoanService)
+eventBus.AddHandler<BookCatalogEventsHandler>()
+        .AddConsumer(Topology.Queues.LoansBooksSync, c => c
+            .On<BookCreatedEvent, BookCatalogEventsHandler>()
+            .On<BookPriceChangedEvent, BookCatalogEventsHandler>()
+            .On<BookRenamedEvent, BookCatalogEventsHandler>()
+            .On<BookDeletedEvent, BookCatalogEventsHandler>());
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -87,6 +109,9 @@ if (app.Configuration.GetValue<bool>("Database:InitializeOnStartup"))
     await DatabaseInitializer.InitializeAsync(connectionString,
         Path.Combine(AppContext.BaseDirectory, "Database"), app.Logger);
 }
+
+// Міграції Loans.Dal/Migrations (Лаб. 08: dbo.ProcessedEvents) — у всіх середовищах, до старту споживачів
+await SqlMigrator.MigrateAsync(connectionString, Path.Combine(AppContext.BaseDirectory, "Migrations"), app.Logger);
 
 if (app.Environment.IsDevelopment())
 {

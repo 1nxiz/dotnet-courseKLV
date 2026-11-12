@@ -19,6 +19,8 @@ public class Book
     public int TotalCopies { get; private set; }
     public short? PublishedYear { get; private set; }
     public bool IsPublished { get; private set; }
+    /// <summary>Скільки примірників видано читачам за весь час — оновлюється подіями сервісу видач (Лаб. 08).</summary>
+    public int TimesLoaned { get; private set; }
     public int AuthorId { get; private set; }
     public Author? Author { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -81,6 +83,13 @@ public class Book
         if (quantity <= 0) throw new DomainException("Quantity must be positive");
         if (TotalCopies < quantity) throw new DomainException($"Only {TotalCopies} copies available");
         TotalCopies -= quantity;
+    }
+
+    /// <summary>Облік видачі (подія LoanStatusChanged зі статусом Issued від сервісу видач).</summary>
+    public void RegisterLoan(int quantity)
+    {
+        if (quantity <= 0) throw new DomainException("Quantity must be positive");
+        TimesLoaned += quantity;
     }
 
     public void Publish()

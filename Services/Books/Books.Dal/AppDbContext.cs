@@ -1,3 +1,4 @@
+using Books.Dal.Entities;
 using Books.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<BookGenre> BookGenres => Set<BookGenre>();
     public DbSet<BookDetail> BookDetails => Set<BookDetail>();
     public DbSet<BookImage> BookImages => Set<BookImage>();
+    public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();   // Лаб. 08: ідемпотентність споживача
 
     /// <summary>Усі IEntityTypeConfiguration&lt;T&gt; цієї збірки підключаються централізовано.</summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)

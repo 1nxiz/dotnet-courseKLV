@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Спільна інфраструктура подій (Лаб. 08): підключення RabbitMQ (Aspire, RabbitMQ.Client 7.x), декларативна топологія
+       з DLX/DLQ, persistent-публікація в JSON, consumer як BackgroundService з ручним ack, повтори x-retry-count,
+       передача контексту трасування через заголовки повідомлень. Контракти подій — у самих сервісах (IntegrationEvents/). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.RabbitMQ.Client.v7" Version="9.5.2" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.*" />
+  </ItemGroup>
+</Project>

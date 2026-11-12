@@ -4,6 +4,7 @@ using AutoMapper;
 using Loans.Bll.Caching;
 using Loans.Bll.Diagnostics;
 using Loans.Bll.Dtos;
+using Loans.Bll.IntegrationEvents;
 using Loans.Dal.Abstractions;
 using Loans.Domain.Common;
 using Loans.Domain.Constants;
@@ -18,14 +19,24 @@ public sealed class LoanService : ILoanService
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
     private readonly ILoansCache _cache;
+    private readonly ILoanEventPublisher _events;
     private readonly ILogger<LoanService> _logger;
 
-    public LoanService(IUnitOfWork uow, IMapper mapper, ILoansCache cache, ILogger<LoanService> logger)
+    public LoanService(IUnitOfWork uow, IMapper mapper, ILoansCache cache, ILoanEventPublisher events, ILogger<LoanService> logger)
     {
         _uow = uow;
         _mapper = mapper;
         _cache = cache;
+        _events = events;
         _logger = logger;
+    }
+
+    /// <summary>Подія loan.status_changed — ПІСЛЯ фіксації транзакції (Лаб. 08), зі свіжим станом видачі.</summary>
+    private async Task PublishStatusChangedAsync(long id, string oldStatus, CancellationToken ct)
+    {
+        var loan = await _uow.Loans.GetWithItemsAsync(id, ct);
+        if (loan is not null && loan.Status != oldStatus)
+            await _events.StatusChangedAsync(loan, oldStatus, ct);
     }
 
     public async Task<PagedResult<LoanSummaryDto>> GetPageAsync(LoanQuery query, CancellationToken ct)
@@ -142,12 +153,14 @@ public sealed class LoanService : ILoanService
     {
         using var activity = LoansDiagnostics.ActivitySource.StartActivity("ConfirmLoan");
         activity?.SetTag("loan.id", id);
+        var previousStatus = LoanStatus.AwaitingValidation;
         await _uow.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
             var loan = await _uow.Loans.GetWithItemsAsync(id, ct)
                        ?? throw new NotFoundException($"Loan {id} not found");
 
+            previousStatus = loan.Status;
             if (loan.Items.Count == 0)
                 throw new BusinessConflictException($"Loan {id} has no items");
 
@@ -169,6 +182,7 @@ public sealed class LoanService : ILoanService
             await _uow.RollbackAsync(ct);                     // статус повертається назад
             throw;
         }
+        await PublishStatusChangedAsync(id, previousStatus, ct);         // після Commit
     }
 
     public async Task<PaymentDto> PayAsync(long id, PayLoanDto input, string? idempotencyKey, string? user, CancellationToken ct)
@@ -187,6 +201,7 @@ public sealed class LoanService : ILoanService
         var payments = await _uow.Loans.GetPaymentsAsync(id, ct);
         var payment = payments.Single(p => p.Id == paymentId);
         await _cache.InvalidateAsync("LoanPaid", ct, CacheKeys.Loan(id));   // синхронно з записом
+        await PublishStatusChangedAsync(id, LoanStatus.Reserved, ct);   // Reserved -> Paid
         _logger.LogInformation("Loan {LoanId} paid: payment {PaymentId}, amount {Amount}, method {Method}",
             id, paymentId, payment.Amount, payment.Method);
         return _mapper.Map<PaymentDto>(payment);
@@ -197,6 +212,7 @@ public sealed class LoanService : ILoanService
         await _uow.Loans.ChangeStatusAsync(id, LoanStatus.Issued, user, ct);   // Paid -> Issued, інакше 409
         await _cache.InvalidateAsync("LoanIssued", ct, CacheKeys.Loan(id));   // синхронно з записом
         _logger.LogInformation("Loan {LoanId} issued, status {Status}", id, LoanStatus.Issued);
+        await PublishStatusChangedAsync(id, LoanStatus.Paid, ct);       // Каталог рахує видачі книг
     }
 
     public async Task ReturnAsync(long id, string? user, CancellationToken ct)
@@ -220,15 +236,18 @@ public sealed class LoanService : ILoanService
             await _uow.RollbackAsync(ct);
             throw;
         }
+        await PublishStatusChangedAsync(id, LoanStatus.Issued, ct);
     }
 
     public async Task CancelAsync(long id, string? user, CancellationToken ct)
     {
+        var previousStatus = LoanStatus.Submitted;
         await _uow.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
             var loan = await _uow.Loans.GetWithItemsAsync(id, ct)
                        ?? throw new NotFoundException($"Loan {id} not found");
+            previousStatus = loan.Status;
             var copiesWereReserved = loan.Status == LoanStatus.Reserved;
 
             await _uow.Loans.ChangeStatusAsync(id, LoanStatus.Cancelled, user, ct);   // після оплати -> 409
@@ -245,6 +264,7 @@ public sealed class LoanService : ILoanService
             await _uow.RollbackAsync(ct);
             throw;
         }
+        await PublishStatusChangedAsync(id, previousStatus, ct);
     }
 
     public async Task DeleteAsync(long id, CancellationToken ct)

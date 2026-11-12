@@ -2,6 +2,7 @@ using AutoMapper;
 using Books.Bll.Caching;
 using Books.Bll.Diagnostics;
 using Books.Bll.Dtos;
+using Books.Bll.IntegrationEvents;
 using Books.Bll.Specifications;
 using Books.Dal.Repositories;
 using Books.Domain.Entities;
@@ -15,13 +16,15 @@ public class BookService : IBookService
     private readonly IUnitOfWork _uow;
     private readonly IMapper _mapper;
     private readonly IBooksCache _cache;
+    private readonly IBookEventPublisher _events;
     private readonly ILogger<BookService> _logger;
 
-    public BookService(IUnitOfWork uow, IMapper mapper, IBooksCache cache, ILogger<BookService> logger)
+    public BookService(IUnitOfWork uow, IMapper mapper, IBooksCache cache, IBookEventPublisher events, ILogger<BookService> logger)
     {
         _uow = uow;
         _mapper = mapper;
         _cache = cache;
+        _events = events;
         _logger = logger;
     }
 
@@ -81,6 +84,7 @@ public class BookService : IBookService
         await _uow.SaveChangesAsync(ct);                                   // одна транзакція: Book + Detail + BookGenres
 
         await _cache.InvalidateAsync("BookCreated", ct, CacheKeys.PublishedByAuthor(book.AuthorId));
+        await _events.BookCreatedAsync(book.Id, book.Title, book.Isbn, book.Price, ct);   // 2) лише після збереження
         _logger.LogInformation("Book {BookId} created: {Title}, ISBN {Isbn}, price {Price}", book.Id, book.Title, book.Isbn, book.Price);
         return await GetByIdAsync(book.Id, ct);
     }
@@ -93,10 +97,13 @@ public class BookService : IBookService
                 new Dictionary<string, string[]> { ["authorId"] = [$"Author {input.AuthorId} not found"] });
 
         var previousAuthorId = book.AuthorId;
+        var oldTitle = book.Title;
         book.Rename(input.Title);
         book.ChangeAuthor(input.AuthorId);
         book.ChangePublishedYear(input.PublishedYear);
         await _uow.SaveChangesAsync(ct);
+        if (!string.Equals(oldTitle, book.Title, StringComparison.Ordinal))
+            await _events.RenamedAsync(id, oldTitle, book.Title, ct);        // копії назви в Loans і Feedback
         await _cache.InvalidateAsync("BookUpdated", ct, CacheKeys.Book(id),
             CacheKeys.PublishedByAuthor(previousAuthorId), CacheKeys.PublishedByAuthor(input.AuthorId));
         _logger.LogInformation("Book {BookId} updated", id);
@@ -111,8 +118,9 @@ public class BookService : IBookService
         var oldPrice = book.ChangePrice(newPrice);                         // інваріант (ціна > 0) перевіряє сутність
         activity?.SetTag("book.old_price", oldPrice);
         activity?.SetTag("book.new_price", newPrice);
-        await _uow.SaveChangesAsync(ct);
+        await _uow.SaveChangesAsync(ct);                                   // 1) зміни збережено
         await _cache.InvalidateAsync("BookPriceChanged", ct, CacheKeys.Book(id), CacheKeys.PublishedByAuthor(book.AuthorId));
+        await _events.PriceChangedAsync(id, book.Title, oldPrice, newPrice, ct);   // 2) лише тоді — подія
         _logger.LogInformation("Book {BookId} price changed {OldPrice} -> {NewPrice}", id, oldPrice, newPrice);
         return _mapper.Map<BookDto>(book);
     }
@@ -153,6 +161,7 @@ public class BookService : IBookService
         _uow.Books.Delete(book);                                           // деталі, зображення, жанри — каскадно
         await _uow.SaveChangesAsync(ct);
         await _cache.InvalidateAsync("BookDeleted", ct, CacheKeys.Book(id), CacheKeys.PublishedByAuthor(book.AuthorId));
+        await _events.DeletedAsync(id, ct);
         _logger.LogInformation("Book {BookId} deleted", id);
     }
 

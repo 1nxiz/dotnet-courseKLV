@@ -18,12 +18,14 @@ public class UnitOfWork : IUnitOfWork
         Genres = new GenreRepository(context);
         BookGenres = new BookGenreRepository(context);
         Authors = new AuthorRepository(context);
+        ProcessedEvents = new ProcessedEventRepository(context);
     }
 
     public IBookRepository Books { get; }
     public IGenreRepository Genres { get; }
     public IBookGenreRepository BookGenres { get; }
     public IAuthorRepository Authors { get; }
+    public IProcessedEventRepository ProcessedEvents { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
 }

@@ -5,6 +5,9 @@ using Feedback.Infrastructure;
 using Feedback.WebApi.ErrorHandling;
 using Feedback.WebApi.Grpc;
 using Feedback.WebApi.HealthChecks;
+using Feedback.WebApi.IntegrationEvents.Events;
+using Feedback.WebApi.IntegrationEvents.Handlers;
+using Platform.EventBus;
 using Feedback.WebApi.Metrics;
 using MediatR;
 using Serilog;
@@ -54,6 +57,18 @@ builder.Services.AddGrpcReflection();
 builder.Services.AddSingleton<FeedbackMetrics>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(MetricsBehavior<,>));
 builder.Services.AddFeedbackHealthChecks(builder.Configuration);
+
+// Лаб. 08: споживання подій Каталогу через RabbitMQ (IConnection — Aspire-інтеграція, RabbitMQ.Client 7.x)
+EventBusBuilder eventBus;
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("messaging")))
+{
+    builder.AddRabbitMQClient("messaging", settings => settings.DisableHealthChecks = true);   // свій check — Degraded
+    eventBus = builder.Services.AddEventBus();
+}
+else
+    eventBus = builder.Services.AddLoggingOnlyEventBus();
+eventBus.AddHandler<BookRenamedHandler>()
+        .AddConsumer(Topology.Queues.FeedbackBooksSync, c => c.On<BookRenamedEvent, BookRenamedHandler>());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

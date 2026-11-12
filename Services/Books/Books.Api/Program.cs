@@ -3,6 +3,11 @@ using System.Reflection;
 using Books.Api.ErrorHandling;
 using Books.Api.Grpc;
 using Books.Api.HealthChecks;
+using Books.Api.IntegrationEvents;
+using Books.Api.IntegrationEvents.Events;
+using Books.Api.IntegrationEvents.Handlers;
+using Books.Bll.IntegrationEvents;
+using Platform.EventBus;
 using Books.Api.Metrics;
 using Books.Bll;
 using Books.Dal;
@@ -57,6 +62,20 @@ builder.Services.AddGrpcReflection();                    // опис серві�
 // ---------- Лаб. 07: бізнес-метрики (Meter "Books.Api") і health checks ----------
 builder.Services.AddSingleton<BooksMetrics>();
 builder.Services.AddBooksHealthChecks(builder.Configuration);
+
+// ---------- Лаб. 08: подієва взаємодія через RabbitMQ ----------
+// IConnection — Aspire-інтеграція (RabbitMQ.Client 7.x): рядок ConnectionStrings:messaging передає AppHost
+EventBusBuilder eventBus;
+if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("messaging")))
+{
+    builder.AddRabbitMQClient("messaging", settings => settings.DisableHealthChecks = true);   // свій check — Degraded
+    eventBus = builder.Services.AddEventBus();
+}
+else
+    eventBus = builder.Services.AddLoggingOnlyEventBus();       // локальний запуск без брокера
+builder.Services.AddScoped<IBookEventPublisher, BookEventPublisher>();   // публікація після SaveChanges (BookService)
+eventBus.AddHandler<LoanStatusChangedHandler>()
+        .AddConsumer(Topology.Queues.BooksLoansSync, c => c.On<LoanStatusChangedEvent, LoanStatusChangedHandler>());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

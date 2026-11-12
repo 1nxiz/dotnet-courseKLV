@@ -11,6 +11,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IReaderRepository Readers { get; }
     ILoanRepository Loans { get; }
     IBookRepository Books { get; }
+    IProcessedEventRepository ProcessedEvents { get; }
 
     bool HasActiveTransaction { get; }
 

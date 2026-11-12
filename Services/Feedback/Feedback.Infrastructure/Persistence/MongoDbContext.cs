@@ -20,6 +20,8 @@ public class MongoDbContext
     public const string ReviewsCollection = "reviews";
     public const string DiscussionsCollection = "discussions";
     public const string MessagesCollection = "messages";
+    public const string BookRatingsCollection = "bookRatings";
+    public const string ProcessedEventsCollection = "processedEvents";      // Лаб. 08: ідемпотентність споживача
 
     public MongoDbContext(IMongoClient client, IOptions<MongoDbOptions> options)
     {

@@ -19,6 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Platform.ServiceDefaults\Platform.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\Platform.EventBus\Platform.EventBus.csproj" />
     <ProjectReference Include="..\Loans.Bll\Loans.Bll.csproj" />
     <ProjectReference Include="..\Loans.Dal\Loans.Dal.csproj" />
   </ItemGroup>
@@ -27,5 +28,7 @@
     <Content Include="..\..\..\db\p1\schema.sql" Link="Database\schema.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\db\p1\procedures.sql" Link="Database\procedures.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\db\p1\seed.sql" Link="Database\seed.sql" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Лаб. 08: SQL-міграції сервісу (SqlMigrator) -->
+    <Content Include="..\Loans.Dal\Migrations\*.sql" Link="Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

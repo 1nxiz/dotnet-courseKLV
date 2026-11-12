@@ -12,6 +12,7 @@ public class BookConfiguration : IEntityTypeConfiguration<Book>
         {
             t.HasCheckConstraint("CK_Books_Price", "[Price] > 0");
             t.HasCheckConstraint("CK_Books_TotalCopies", "[TotalCopies] >= 0");
+            t.HasCheckConstraint("CK_Books_TimesLoaned", "[TimesLoaned] >= 0");
             t.HasCheckConstraint("CK_Books_PublishedYear", "[PublishedYear] BETWEEN 1450 AND 2100");
         });
         builder.HasKey(b => b.Id);
@@ -19,6 +20,7 @@ public class BookConfiguration : IEntityTypeConfiguration<Book>
         builder.Property(b => b.Title).IsRequired().HasMaxLength(300);
         builder.Property(b => b.Isbn).IsRequired().HasMaxLength(20);
         builder.Property(b => b.Price).HasColumnType("decimal(18,2)");
+        builder.Property(b => b.TimesLoaned).HasDefaultValue(0);              // Лаб. 08: лічильник з подій видач
         builder.Property(b => b.CreatedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
         builder.Property(b => b.UpdatedAt).HasColumnType("datetime2(3)");
         builder.Property(b => b.RowVersion).IsRowVersion();                    // оптимістична конкурентність

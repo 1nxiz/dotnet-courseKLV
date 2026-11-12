@@ -54,5 +54,15 @@ public interface IUnitOfWork
     IGenreRepository Genres { get; }
     IBookGenreRepository BookGenres { get; }
     IAuthorRepository Authors { get; }
+    IProcessedEventRepository ProcessedEvents { get; }
     Task<int> SaveChangesAsync(CancellationToken ct = default);
+}
+
+/// <summary>Журнал оброблених integration events (Лаб. 08).</summary>
+public interface IProcessedEventRepository
+{
+    Task<bool> ExistsAsync(Guid eventId, CancellationToken ct = default);
+
+    /// <summary>Позначити подію обробленою — фіксується тим самим SaveChangesAsync, що й бізнес-зміна.</summary>
+    void Add(Guid eventId, string eventType);
 }

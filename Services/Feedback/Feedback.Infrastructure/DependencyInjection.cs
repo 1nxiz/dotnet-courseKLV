@@ -41,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<IDiscussionRepository, DiscussionRepository>();
         services.AddScoped<IReviewQueries, ReviewQueries>();
         services.AddScoped<IDiscussionQueries, DiscussionQueries>();
+        services.AddScoped<IProcessedEventStore, ProcessedEventStore>();   // Лаб. 08
+        services.AddScoped<IBookCopiesWriter, BookCopiesWriter>();
 
         services.AddScoped<IDataSeeder, ReviewSeeder>();
         services.AddScoped<IDataSeeder, DiscussionSeeder>();

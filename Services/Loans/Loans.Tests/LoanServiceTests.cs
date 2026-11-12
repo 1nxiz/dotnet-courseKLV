@@ -1,6 +1,7 @@
 using AutoMapper;
 using Loans.Bll.Caching;
 using Loans.Bll.Dtos;
+using Loans.Bll.IntegrationEvents;
 using Loans.Bll.Mapping;
 using Loans.Bll.Services;
 using Loans.Dal.Abstractions;
@@ -33,7 +34,7 @@ public class LoanServiceTests
         _uow.SetupGet(u => u.Books).Returns(_books.Object);
         _uow.SetupGet(u => u.Readers).Returns(_readers.Object);
         var mapper = new MapperConfiguration(cfg => cfg.AddMaps(typeof(LoanProfile).Assembly), NullLoggerFactory.Instance).CreateMapper();
-        _service = new LoanService(_uow.Object, mapper, CreateCache(), NullLogger<LoanService>.Instance);
+        _service = new LoanService(_uow.Object, mapper, CreateCache(), Mock.Of<ILoanEventPublisher>(), NullLogger<LoanService>.Instance);
     }
 
     /// <summary>Справжній дворівневий кеш: L1 MemoryCache + L2 MemoryDistributedCache (замість Redis).</summary>

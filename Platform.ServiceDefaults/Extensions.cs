@@ -162,7 +162,9 @@ public static class PlatformTelemetry
     public static readonly string[] Meters =
     [
         "Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator", "Platform.ApiGateway",
-        "Loans.Cache", "Books.Cache", "Feedback.Cache", "Platform.Aggregator.Cache"      // cache.hits / cache.misses (Лаб. 06)
+        "Loans.Cache", "Books.Cache", "Feedback.Cache", "Platform.Aggregator.Cache",     // cache.hits / cache.misses (Лаб. 06)
+        "Platform.EventBus"                                                              // published / consumed / DLQ depth (Лаб. 08)
     ];
-    public static readonly string[] ActivitySources = ["Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator"];
+    public static readonly string[] ActivitySources = ["Loans.Api", "Books.Api", "Feedback.WebApi", "Platform.Aggregator",
+        "Platform.Messaging"];   // Лаб. 08: publish / process spans через брокер (TracePropagation)
 }

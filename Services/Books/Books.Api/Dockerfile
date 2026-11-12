@@ -5,6 +5,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY ["global.json", "Directory.Build.props", "./"]
 COPY ["Platform.ServiceDefaults/Platform.ServiceDefaults.csproj", "Platform.ServiceDefaults/"]
+COPY ["Platform.EventBus/Platform.EventBus.csproj", "Platform.EventBus/"]
 COPY ["Services/Books/Books.Api/Books.Api.csproj", "Services/Books/Books.Api/"]
 COPY ["Services/Books/Books.Bll/Books.Bll.csproj", "Services/Books/Books.Bll/"]
 COPY ["Services/Books/Books.Dal/Books.Dal.csproj", "Services/Books/Books.Dal/"]

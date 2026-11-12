@@ -19,6 +19,12 @@ var feedbackDb = mongo.AddDatabase("FeedbackDb");
 var redis = builder.AddRedis("redis")
                    .WithDataVolume("library-redis-data");
 
+// RabbitMQ (Лаб. 08): брокер подій; volume — повідомлення переживають перезапуск, Management UI — моніторинг черг.
+// Облікові дані генерує Aspire, рядок ConnectionStrings:messaging отримують сервіси з WithReference(rabbit).
+var rabbit = builder.AddRabbitMQ("messaging")
+                    .WithDataVolume("library-rabbitmq-data")
+                    .WithManagementPlugin();
+
 // ============ Мікросервіси ============
 // Імена ресурсів БД збігаються з іменами рядків підключення в сервісах (ConnectionStrings__LoansDb тощо),
 // тому код сервісів не змінюється. Імена ресурсів сервісів — це DNS-імена для service discovery.
@@ -28,18 +34,21 @@ var loansApi = builder.AddProject<Projects.Loans_Api>("loans-api")
                       .WithReference(loansDb)
                       .WaitFor(sql)
                       .WithReference(redis).WaitFor(redis)
+                      .WithReference(rabbit).WaitFor(rabbit)                    // споживає book.*, публікує loan.status_changed
                       .WithHttpHealthCheck("/health");
 
 var booksApi = builder.AddProject<Projects.Books_Api>("books-api")
                       .WithReference(booksDb)
                       .WaitFor(sql)
                       .WithReference(redis).WaitFor(redis)
+                      .WithReference(rabbit).WaitFor(rabbit)                    // публікує book.*, споживає loan.status_changed
                       .WithHttpHealthCheck("/health");
 
 var feedbackApi = builder.AddProject<Projects.Feedback_WebApi>("feedback-api")
                          .WithReference(feedbackDb)
                          .WaitFor(mongo)
                          .WithReference(redis).WaitFor(redis)
+                         .WithReference(rabbit).WaitFor(rabbit)                 // споживає book.renamed
                          .WithHttpHealthCheck("/health");
 
 // ============ Aggregator: паралельно опитує три сервіси через gRPC (endpoint "grpc" кожного сервісу) ============
