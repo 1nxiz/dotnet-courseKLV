@@ -131,10 +131,10 @@ curl -s https://get.pulumi.com | sh -s -- --silent >/dev/null; export PATH=$HOME
 pulumi version
 export PULUMI_CONFIG_PASSPHRASE="ci" PULUMI_SKIP_UPDATE_CHECK=true
 pushd infra/keycloak >/dev/null
-pulumi login --local >/dev/null
-pulumi stack select dev --create >/dev/null 2>&1 || pulumi stack init dev
+pulumi login --local
+pulumi stack select dev --create
 pulumi config set library:temporaryPasswords false      # у CI паролі не тимчасові (password grant)
-pulumi preview --non-interactive --diff 2>&1 | grep -E "^\s+\+ |Resources:|create" | head -20
+pulumi preview --non-interactive --diff 2>&1 | tail -40
 pulumi up --yes --non-interactive --skip-preview 2>&1 | tail -8
 pulumi stack output --json | python3 -c "import json,sys;d=json.load(sys.stdin);print('   outputs:',{k:d[k] for k in ('RealmUrl','AdminConsoleUrl','ClientIds')})"
 pulumi preview --non-interactive 2>&1 | grep -E "unchanged|Resources" | tail -2
