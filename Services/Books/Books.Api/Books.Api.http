@@ -1,0 +1,49 @@
+### Books API — приклади запитів
+@host = http://localhost:5102
+
+### Пагінація + фільтр + сортування (у SQL: WHERE ... ORDER BY ... OFFSET/FETCH)
+GET {{host}}/api/books?page=2&pageSize=3&sortBy=price&sortDir=desc
+
+### Пошук і діапазон цін
+GET {{host}}/api/books?search=Clean&minPrice=10&maxPrice=100
+
+### Картка книги (eager loading — 1 SQL-запит у лозі)
+GET {{host}}/api/books/1
+
+### Жанр із книгами (explicit loading — 2 SQL-запити у лозі)
+GET {{host}}/api/books/genres/5
+
+### M:N через проміжну сутність: нещодавно додані в жанр
+GET {{host}}/api/books/genres/software-architecture/recent?since=2026-09-01
+
+### Друга специфікація: опубліковані книги автора
+GET {{host}}/api/books/authors/4/books
+
+### Створити книгу -> 201 + Location
+POST {{host}}/api/books
+Content-Type: application/json
+
+{ "title": "Refactoring", "isbn": "978-0-13-475759-9", "price": 55, "authorId": 4, "publishedYear": 2018,
+  "initialCopies": 2, "description": "Improving the Design of Existing Code", "publisher": "Addison-Wesley", "pages": 448,
+  "genreIds": [4] }
+
+### Той самий ISBN ще раз -> 409
+POST {{host}}/api/books
+Content-Type: application/json
+
+{ "title": "Refactoring", "isbn": "978-0-13-475759-9", "price": 55, "authorId": 4 }
+
+### Порожня назва -> 400 з помилками по полях
+POST {{host}}/api/books
+Content-Type: application/json
+
+{ "title": "", "isbn": "bad", "price": -1, "authorId": 0 }
+
+### Списати більше, ніж є -> 409
+POST {{host}}/api/books/8/write-off
+Content-Type: application/json
+
+{ "quantity": 100 }
+
+### Неіснуючий Id -> 404 ProblemDetails
+GET {{host}}/api/books/999999

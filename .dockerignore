@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/logs/
+**/*.user
+.git/
+aspirate-output/

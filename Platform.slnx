@@ -9,6 +9,13 @@
     <Project Path="Services/Loans/Loans.Domain/Loans.Domain.csproj" />
     <Project Path="Services/Loans/Loans.Tests/Loans.Tests.csproj" />
   </Folder>
+  <Folder Name="/Services/Books/">
+    <Project Path="Services/Books/Books.Api/Books.Api.csproj" />
+    <Project Path="Services/Books/Books.Bll/Books.Bll.csproj" />
+    <Project Path="Services/Books/Books.Dal/Books.Dal.csproj" />
+    <Project Path="Services/Books/Books.Domain/Books.Domain.csproj" />
+    <Project Path="Services/Books/Books.Tests/Books.Tests.csproj" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />
     <File Path="global.json" />
