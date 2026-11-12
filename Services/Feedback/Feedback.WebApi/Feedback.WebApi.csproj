@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Presentation: контролери (лише ISender), обробка помилок ProblemDetails (включно з MongoDB-винятками), Swagger, DI.
+       Посилається на Application і Infrastructure (останнє — лише для реєстрації залежностей). -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Feedback.Application\Feedback.Application.csproj" />
+    <ProjectReference Include="..\Feedback.Infrastructure\Feedback.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

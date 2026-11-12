@@ -84,6 +84,8 @@ Services/
     Loans.Api · Loans.Bll · Loans.Dal · Loans.Domain · Loans.Tests
   Books/                  Лаб. 03 — каталог книг (EF Core Code First, специфікації)
     Books.Api · Books.Bll · Books.Dal (Configurations/, Migrations/, Seeding/) · Books.Domain · Books.Tests
+  Feedback/               Лаб. 04 — відгуки й обговорення (Clean Architecture, CQRS/MediatR, MongoDB)
+    Feedback.Domain · Feedback.Application · Feedback.Infrastructure · Feedback.WebApi · Feedback.Tests
 db/
   deploy.ps1 / deploy.sh  розгортання всіх трьох баз з нуля однією командою
   security.sql            окремі логіни застосунків з доступом лише до своєї БД
@@ -219,4 +221,20 @@ dotnet ef database update --project Services/Books/Books.Dal --startup-project S
 ```bash
 curl "http://localhost:5102/api/books?page=2&pageSize=5&sortBy=price&sortDir=desc"
 curl -i -X POST http://localhost:5102/api/books -H "Content-Type: application/json" -d "{\"title\":\"\",\"isbn\":\"bad\",\"price\":-1,\"authorId\":0}"
+```
+
+## Лаб. 04 — сервіс Feedback: Clean Architecture + CQRS (MediatR) + MongoDB
+
+Детально: [Services/Feedback/README.md](Services/Feedback/README.md).
+
+```text
+Feedback.Domain        сутності Review/Discussion/Message, value objects Author/Rating/ReadingProgress, інтерфейси репозиторіїв
+Feedback.Application   Commands/, Queries/, Behaviors/ (Logging, Validation, Performance), валідатори, IReviewQueries
+Feedback.Infrastructure MongoDbContext, BsonClassMap, репозиторії, aggregation-запити, індекси, сідінг
+Feedback.WebApi        контролери через ISender, ProblemDetails з MongoDB-винятками, Swagger
+```
+
+```bash
+dotnet run --project Services/Feedback/Feedback.WebApi       # http://localhost:5103/swagger
+curl -i -X POST http://localhost:5103/api/reviews -H "Content-Type: application/json" -d "{\"bookId\":2,\"bookTitle\":\"Тигролови\",\"authorId\":\"u-x\",\"authorName\":\"X\",\"rating\":10,\"text\":\"?\"}"   # 400 до обробника
 ```

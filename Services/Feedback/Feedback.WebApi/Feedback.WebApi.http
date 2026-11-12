@@ -1,0 +1,45 @@
+### Feedback API — приклади запитів
+@host = http://localhost:5103
+
+### Список відгуків про книгу (пагінація + фільтр у MongoDB)
+GET {{host}}/api/reviews?bookId=4&page=1&pageSize=10
+
+### Повнотекстовий пошук (text-індекс)
+GET {{host}}/api/reviews?search=узгодженість
+
+### Відгук за Id (ETag = версія)
+GET {{host}}/api/reviews/66a000000000000000000001
+
+### Некоректний ObjectId -> 400
+GET {{host}}/api/reviews/not-an-object-id
+
+### Неіснуючий Id -> 404
+GET {{host}}/api/reviews/66a0000000000000000000ff
+
+### Створити відгук -> 201 + Location
+POST {{host}}/api/reviews
+Content-Type: application/json
+
+{ "bookId": 2, "bookTitle": "Тигролови", "authorId": "u-taras", "authorName": "Тарас", "rating": 5, "text": "Класика пригод!" }
+
+### Rating = 10 -> 400 ще до виклику обробника
+POST {{host}}/api/reviews
+Content-Type: application/json
+
+{ "bookId": 2, "bookTitle": "Тигролови", "authorId": "u-x", "authorName": "X", "rating": 10, "text": "?" }
+
+### Повторний відгук того самого автора -> 400 (асинхронний валідатор)
+POST {{host}}/api/reviews
+Content-Type: application/json
+
+{ "bookId": 4, "bookTitle": "Clean Architecture", "authorId": "u-olena", "authorName": "Олена", "rating": 3, "text": "Ще раз" }
+
+### Редагування з If-Match (застаріла версія -> 409)
+PUT {{host}}/api/reviews/66a000000000000000000001
+Content-Type: application/json
+If-Match: "999"
+
+{ "rating": 4, "text": "Оновлений текст" }
+
+### Обговорення з курсорною пагінацією
+GET {{host}}/api/reviews/discussions/66b000000000000000000001?pageSize=2
