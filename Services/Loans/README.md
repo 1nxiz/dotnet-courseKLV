@@ -11,7 +11,7 @@
 | `Loans.Dal` | Інтерфейси репозиторіїв (`IGenericRepository<T>`, `ILoanRepository`, `IBookRepository`, `IReaderRepository`), реалізації на ADO.NET і Dapper, `UnitOfWork`, `SqlExceptionMapper`, `DatabaseInitializer` |
 | `Loans.Domain` | Моделі (`Loan`, `LoanItem`, `LoanDetails`, `Reader`, `Book`, `Payment`), статуси, доменні винятки — спільні для DAL і BLL |
 | `Loans.Tests` | Unit-тести BLL (Moq), перевірка AutoMapper (`AssertConfigurationIsValid`), інтеграційний тест відкату UoW, API-тести (WebApplicationFactory) |
-| `Loans.AppHost` | .NET Aspire: API + SQL Server у контейнері однією командою |
+| `Platform.AppHost` (корінь репозиторію) | .NET Aspire (`AppHost.cs`): API + SQL Server у контейнері однією командою |
 
 ```text
 Loans.Api ──► Loans.Bll ──► Loans.Dal ──► SQL Server (LoansDb)
@@ -84,7 +84,7 @@ Loans.Api ──► Loans.Bll ──► Loans.Dal ──► SQL Server (LoansDb)
 **Через .NET Aspire (рекомендовано, потрібен Docker Desktop):**
 
 ```bash
-dotnet run --project Services/Loans/Loans.AppHost
+dotnet run --project Platform.AppHost
 ```
 
 Відкриється Aspire Dashboard: ресурси `sql` (контейнер SQL Server) і `loans-api` мають статус **Running**.

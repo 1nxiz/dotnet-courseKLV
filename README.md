@@ -76,11 +76,12 @@ erDiagram
 
 ```text
 README.md                 опис домену, запуск, розгортання БД, таблиця дублювання
-Library.sln               єдине рішення для всіх сервісів
+Platform.slnx             одне рішення на всю платформу (формат .slnx)
+Platform.AppHost/         оркестрація .NET Aspire (AppHost.cs)
 docs/                     ERD-діаграми, опис контекстів, приклади документів MongoDB
 Services/
   Loans/                  Лаб. 02 — сервіс видач (ADO.NET + Dapper, тришарова архітектура)
-    Loans.Api · Loans.Bll · Loans.Dal · Loans.Domain · Loans.Tests · Loans.AppHost
+    Loans.Api · Loans.Bll · Loans.Dal · Loans.Domain · Loans.Tests
 db/
   deploy.ps1 / deploy.sh  розгортання всіх трьох баз з нуля однією командою
   security.sql            окремі логіни застосунків з доступом лише до своєї БД
@@ -164,12 +165,13 @@ EXEC dbo.usp_ChangeLoanStatus @LoanId = @id, @NewStatus = N'Issued';
 
 Детальний опис, таблиця ендпоінтів і приклади запитів: [Services/Loans/README.md](Services/Loans/README.md).
 
-**Що потрібно:** .NET 8 SDK, Docker Desktop.
+**Що потрібно:** Docker Desktop; .NET SDK **9.0.200+ або 10** (потрібен для рішення формату `Platform.slnx`)
+і **.NET 8 SDK/Runtime** (проєкти націлені на `net8.0`). IDE: Visual Studio 2022 17.13+, Rider 2024.3+ або VS Code з C# Dev Kit.
 
 **Запуск однією командою через .NET Aspire** (SQL Server у контейнері + API):
 
 ```bash
-dotnet run --project Services/Loans/Loans.AppHost
+dotnet run --project Platform.AppHost
 ```
 
 У Aspire Dashboard ресурси `sql` і `loans-api` мають статус Running; Swagger — `http://localhost:5101/swagger`.
@@ -177,6 +179,7 @@ dotnet run --project Services/Loans/Loans.AppHost
 **Схема рішення:** `Loans.Api` (контролери, ProblemDetails, Swagger, Serilog) → `Loans.Bll` (сервіси, DTO, AutoMapper)
 → `Loans.Dal` (Generic Repository, 1 репозиторій на чистому ADO.NET — `ReaderRepository`, 2 на Dapper — `LoanRepository`,
 `BookRepository`, Unit of Work) → `LoansDb`; `Loans.Domain` — моделі й доменні винятки для DAL і BLL.
+`Platform.AppHost/AppHost.cs` — SQL Server у контейнері (ресурс бази `LoansDb` = ім'я рядка підключення API) + `loans-api` з `WithReference`.
 
 | Сценарій | Запит | Результат |
 |---|---|---|

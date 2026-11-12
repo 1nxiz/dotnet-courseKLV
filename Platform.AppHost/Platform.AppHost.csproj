@@ -1,16 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- .NET Aspire AppHost: запускає Loans.Api разом із SQL Server однією командою (dotnet run). -->
+  <!-- .NET Aspire AppHost платформи (AppHost.cs): у Лаб. 02 запускає Loans.Api разом із SQL Server однією командою. -->
   <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.2" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
-    <UserSecretsId>loans-apphost-7a41e0c9</UserSecretsId>
+    <UserSecretsId>platform-apphost-7a41e0c9</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" Version="9.5.2" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="9.5.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Loans.Api\Loans.Api.csproj" />
+    <ProjectReference Include="..\Services\Loans\Loans.Api\Loans.Api.csproj" />
   </ItemGroup>
 </Project>
