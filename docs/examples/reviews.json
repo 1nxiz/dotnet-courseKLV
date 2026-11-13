@@ -1,0 +1,115 @@
+[
+  {
+    "_id": {
+      "$oid": "66a000000000000000000001"
+    },
+    "bookId": {
+      "$numberLong": "4"
+    },
+    "bookTitle": "Clean Architecture",
+    "author": {
+      "userId": "u-olena",
+      "displayName": "Олена"
+    },
+    "rating": 5,
+    "text": "Чудово пояснено правило залежностей і межі шарів.",
+    "photos": [
+      "https://cdn.library.example/reviews/r1-1.jpg",
+      "https://cdn.library.example/reviews/r1-2.jpg"
+    ],
+    "comments": [
+      {
+        "author": {
+          "userId": "u-andrii",
+          "displayName": "Андрій"
+        },
+        "text": "Згоден, особливо розділ про компоненти.",
+        "createdAt": {
+          "$date": "2026-10-01T12:00:00Z"
+        }
+      },
+      {
+        "author": {
+          "userId": "u-iryna",
+          "displayName": "Ірина"
+        },
+        "text": "А приклади коду там є?",
+        "createdAt": {
+          "$date": "2026-10-01T13:00:00Z"
+        }
+      }
+    ],
+    "discussionId": {
+      "$oid": "66b000000000000000000001"
+    },
+    "createdAt": {
+      "$date": "2026-10-01T10:00:00Z"
+    },
+    "updatedAt": null,
+    "version": 0
+  },
+  {
+    "_id": {
+      "$oid": "66a000000000000000000002"
+    },
+    "bookId": {
+      "$numberLong": "4"
+    },
+    "bookTitle": "Clean Architecture",
+    "author": {
+      "userId": "u-andrii",
+      "displayName": "Андрій"
+    },
+    "rating": 4,
+    "text": "Корисно, але подекуди забагато теорії.",
+    "readingProgress": {
+      "pagesRead": 432,
+      "finished": true
+    },
+    "comments": [],
+    "discussionId": {
+      "$oid": "66b000000000000000000001"
+    },
+    "createdAt": {
+      "$date": "2026-10-02T09:00:00Z"
+    },
+    "updatedAt": null,
+    "version": 0
+  },
+  {
+    "_id": {
+      "$oid": "66a000000000000000000003"
+    },
+    "bookId": {
+      "$numberLong": "6"
+    },
+    "bookTitle": "Designing Data-Intensive Applications",
+    "author": {
+      "userId": "u-iryna",
+      "displayName": "Ірина"
+    },
+    "rating": 5,
+    "text": "Найкраща книга про реплікацію, партиціювання та узгодженість.",
+    "quote": "Data outlives code.",
+    "comments": [
+      {
+        "author": {
+          "userId": "u-olena",
+          "displayName": "Олена"
+        },
+        "text": "Розділ про eventual consistency — must read перед Лаб. 08.",
+        "createdAt": {
+          "$date": "2026-10-06T08:00:00Z"
+        }
+      }
+    ],
+    "discussionId": null,
+    "createdAt": {
+      "$date": "2026-10-05T19:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-06T07:00:00Z"
+    },
+    "version": 1
+  }
+]

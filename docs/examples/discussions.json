@@ -1,0 +1,69 @@
+[
+  {
+    "_id": {
+      "$oid": "66b000000000000000000001"
+    },
+    "bookId": {
+      "$numberLong": "4"
+    },
+    "bookTitle": "Clean Architecture",
+    "title": "Чи потрібен окремий шар Application у невеликому сервісі?",
+    "startedBy": {
+      "userId": "u-andrii",
+      "displayName": "Андрій"
+    },
+    "tags": [
+      "architecture",
+      "clean-architecture",
+      "reading-club"
+    ],
+    "messagesCount": 4,
+    "lastMessages": [
+      {
+        "messageId": {
+          "$oid": "66c000000000000000000002"
+        },
+        "author": {
+          "userId": "u-olena",
+          "displayName": "Олена"
+        },
+        "text": "Для CRUD-сервісу — ні, але для домену з правилами — так.",
+        "createdAt": {
+          "$date": "2026-10-02T10:05:00Z"
+        }
+      },
+      {
+        "messageId": {
+          "$oid": "66c000000000000000000003"
+        },
+        "author": {
+          "userId": "u-iryna",
+          "displayName": "Ірина"
+        },
+        "text": "Погоджуюсь, головне — правило залежностей.",
+        "createdAt": {
+          "$date": "2026-10-02T11:00:00Z"
+        }
+      },
+      {
+        "messageId": {
+          "$oid": "66c000000000000000000004"
+        },
+        "author": {
+          "userId": "u-andrii",
+          "displayName": "Андрій"
+        },
+        "text": "Дякую, спробую на практиці в Лаб. 04 :)",
+        "createdAt": {
+          "$date": "2026-10-03T09:00:00Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-10-02T10:00:00Z"
+    },
+    "lastActivityAt": {
+      "$date": "2026-10-03T09:00:00Z"
+    }
+  }
+]

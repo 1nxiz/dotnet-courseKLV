@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Platform/">
+    <Project Path="Platform.AppHost/Platform.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/Services/Loans/">
+    <Project Path="Services/Loans/Loans.Api/Loans.Api.csproj" />
+    <Project Path="Services/Loans/Loans.Bll/Loans.Bll.csproj" />
+    <Project Path="Services/Loans/Loans.Dal/Loans.Dal.csproj" />
+    <Project Path="Services/Loans/Loans.Domain/Loans.Domain.csproj" />
+    <Project Path="Services/Loans/Loans.Tests/Loans.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>

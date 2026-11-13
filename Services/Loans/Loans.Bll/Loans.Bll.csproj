@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BLL: сервіси (бізнес-логіка), інтерфейси сервісів, DTO, профілі AutoMapper. -->
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="15.1.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Loans.Dal\Loans.Dal.csproj" />
+    <ProjectReference Include="..\Loans.Domain\Loans.Domain.csproj" />
+  </ItemGroup>
+</Project>
